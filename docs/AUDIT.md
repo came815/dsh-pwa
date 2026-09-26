@@ -1,4 +1,4 @@
-# DSH Mobile UX 审计清单
+# DSH PWA UX 审计清单
 
 > 2026-08-31 · 针对 `web/`（app.js / style.css / index.html）的全面走查。
 > 基线：Vercel Web Interface Guidelines + iOS 移动体验惯例 + 真实使用反馈。

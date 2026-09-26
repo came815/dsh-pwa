@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check (no build step in this repo — keep it that way)
+        run: |
+          node --check lib/index.js
+          node --check lib/routes.js
+          node --check client/client.js
+          node --check test/smoke.mjs
+      - name: Static asset sanity
+        run: |
+          for f in web/index.html web/app.js web/style.css web/manifest.webmanifest web/icon.svg web/icon-180.png web/icon-512.png; do
+            test -f "$f" || { echo "missing: $f"; exit 1; }
+          done
+          node -e "JSON.parse(require('fs').readFileSync('web/manifest.webmanifest','utf8')); console.log('manifest: valid JSON')"
+      - name: Mount smoke test
+        run: node test/smoke.mjs

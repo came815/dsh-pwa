@@ -1,4 +1,4 @@
-/* DSH Mobile — phone-native surface.
+/* DSH PWA — phone-native surface.
  * Talks to the harness's own /api (same origin, same trust fence as the
  * desktop GUI), 0.1.2+ Typert gateway protocol:
  *   - unary RPC: POST /api/<ns>/<method>, envelope {args:{request|_request|…}}
@@ -4851,7 +4851,7 @@ function initPtr(sc) {
 /* ================= 深浅色主题 ================= */
 function initTheme() {
   let saved = null
-  try { saved = localStorage.getItem('dsh-mobile-theme') } catch (e) {}
+  try { saved = localStorage.getItem('dsh-pwa-theme') } catch (e) {}
   applyTheme(saved === 'light' || saved === 'dark' ? saved : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'))
 }
 function applyTheme(t) {
@@ -4870,7 +4870,7 @@ function applyTheme(t) {
 }
 function toggleTheme() {
   const next = document.documentElement.classList.contains('light') ? 'dark' : 'light'
-  try { localStorage.setItem('dsh-mobile-theme', next) } catch (e) {}
+  try { localStorage.setItem('dsh-pwa-theme', next) } catch (e) {}
   applyTheme(next)
 }
 

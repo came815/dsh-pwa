@@ -1,13 +1,13 @@
-// dsh-mobile client bundle: adds 设置 → 手机端 with the mobile surface URL.
+// dsh-pwa client bundle: adds 设置 → 手机端 with the mobile surface URL.
 // Hand-authored CJS bundle for window.__ModuleLoader__ (no build step).
-window.__ModuleLoader__.load({ id: "dsh-mobile", factory: (require) => {
+window.__ModuleLoader__.load({ id: "dsh-pwa", factory: (require) => {
 var module = { exports: {} }; var exports = module.exports;
 
 const React = require('react')
 const h = React.createElement
 const { useState } = React
 
-const name = "dsh-mobile"
+const name = "dsh-pwa"
 const inject = ["slots"]
 
 function MobileSettingsPage() {
