@@ -1,3 +1,5 @@
+<img width="1200" height="630" alt="og-image" src="https://github.com/user-attachments/assets/2ec218ac-e9ef-46e7-9046-421cee7855c2" />
+
 # dsh-pwa
 
 English | [中文](README.zh.md)
