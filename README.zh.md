@@ -72,8 +72,10 @@ dsh --profile web --host 0.0.0.0 --port 3080 --trusted-host <你的访问域名>
 ```
 
 **3.** 手机浏览器打开 `http://<主机地址>:3080/m/` → *分享 → 添加到主屏幕*，即为全屏 PWA。
+   - 同一局域网/Wi-Fi：`<主机地址>` 填服务器的内网 IP。
+   - 出门在外：用 [Tailscale](https://tailscale.com)——第 2 步的 `--trusted-host` 里加上你的 Tailscale 主机名（服务器和手机都要装 Tailscale 并登录同一账号），然后手机打开 `http://<Tailscale主机名>:3080/m/`。
 
-以后升级：`npm update dsh-pwa` 后重启 `dsh web` 即可。本插件只挂载静态页面，协议层完全复用 DSH 自带的 `/api`，跟着你的 DSH 版本走。
+以后升级：`npm update dsh-pwa` 后重启 `dsh web` 即可。本插件只挂载静态页面，协议层完全复用 DSH 自带的 `/api`，跟着你的 DSH 版本走（developer preview 的注意事项见下方 FAQ）。
 
 ## 原理
 

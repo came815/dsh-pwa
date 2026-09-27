@@ -71,8 +71,10 @@ dsh --profile web --host 0.0.0.0 --port 3080 --trusted-host <your-access-domain>
 ```
 
 **3.** On your phone, open `http://<host>:3080/m/` → *Share → Add to Home Screen* for the full-screen PWA.
+   - Same LAN/Wi-Fi: `<host>` is the server's LAN IP.
+   - Away from home: use [Tailscale](https://tailscale.com) — add your Tailscale hostname to `--trusted-host` in step 2 (Tailscale must be running on both the server and the phone, logged into the same account), then open `http://<tailscale-hostname>:3080/m/`.
 
-Upgrade later with `npm update dsh-pwa` and a `dsh web` restart. The plugin only mounts static files; the protocol layer is DSH's own `/api`, so it tracks your DSH version automatically.
+Upgrade later with `npm update dsh-pwa` and a `dsh web` restart. The plugin only mounts static files; the page speaks DSH's own `/api`, so it moves with your DSH version (developer-preview caveat in the FAQ below).
 
 ## How it works
 
