@@ -106,6 +106,8 @@ const ICONS = {
   moon: SVG_OPEN + '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   copy: SVG_OPEN + '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   speaker: SVG_OPEN + '<path d="M3 9.5v5h3.5L12 19V5L6.5 9.5z"/><path d="M15.5 8.8a4.6 4.6 0 0 1 0 6.4M18 6.3a8 8 0 0 1 0 11.4"/>',
+  terminal: SVG_OPEN + '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9.5l3.5 3L7 16M12.5 16h5"/>',
+  retry: SVG_OPEN + '<path d="M20 11a8 8 0 1 0-.9 4.9"/><path d="M20 5v6h-6"/>',
   brain: SVG_OPEN + '<path d="M9.5 3a2.5 2.5 0 0 0-2.5 2.5c0 .4.1.7.2 1A3.5 3.5 0 0 0 5 13.5a3.5 3.5 0 0 0 2.2 6.2A2.5 2.5 0 0 0 11 21V5.5A2.5 2.5 0 0 0 9.5 3z"/><path d="M14.5 3a2.5 2.5 0 0 1 2.5 2.5c0 .4-.1.7-.2 1a3.5 3.5 0 0 1 2.2 7A3.5 3.5 0 0 1 16.8 19.7 2.5 2.5 0 0 1 13 21V5.5A2.5 2.5 0 0 1 14.5 3z"/></svg>',
   /* 思考图标（用户选定「打字泡」）：气泡里三颗点，live 时 CSS 驱动波浪 */
   think: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6-5.6-1.9 5.6-1.9z"/><path d="M18.5 3l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" stroke-width="1.2"/></svg>',
@@ -2810,6 +2812,138 @@ function renderStaleStrip() {
   x.onclick = () => { S.staleNotice = null; renderStaleStrip(); vibrate(8) }
   strip.appendChild(x)
 }
+/* ================= 遥控终端：Mac 上的 zsh（PTY）· SSE 输出 + POST 输入 =================
+ * 单例共享 shell，断线重连回放最近 256KB 输出；xterm.js 渲染，手机配特殊键工具条。 */
+const TERM = { view: null, xterm: null, fit: null, es: null, ctrl: false, loaded: false }
+function loadXterm() {
+  if (TERM.loaded) return Promise.resolve()
+  if (TERM.loading) return TERM.loading
+  TERM.loading = new Promise((resolve, reject) => {
+    const css = document.createElement('link')
+    css.rel = 'stylesheet'; css.href = '/m/vendor/xterm.css'
+    document.head.appendChild(css)
+    const s1 = document.createElement('script')
+    s1.src = '/m/vendor/xterm.js'
+    s1.onload = () => {
+      const s2 = document.createElement('script')
+      s2.src = '/m/vendor/addon-fit.js'
+      s2.onload = () => { TERM.loaded = true; resolve() }
+      s2.onerror = reject
+      document.head.appendChild(s2)
+    }
+    s1.onerror = reject
+    document.head.appendChild(s1)
+  })
+  return TERM.loading
+}
+function showTerm() {
+  closeTerm(true)   // 保留 xterm 实例只换容器?直接重建更稳：输出回放覆盖
+  document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'))
+  let v = $('#view-term')
+  if (!v) {
+    v = el('div', 'view')
+    v.id = 'view-term'
+    v.innerHTML = '<div class="navbar"><div class="bar"><button class="nav-btn back" id="term-back" aria-label="返回"><span class="ic-slot" data-ic="back"></span></button><div class="title">终端</div><button class="nav-btn" id="term-restart" type="button" aria-label="重启终端"><span class="ic-slot" data-ic="retry"></span></button></div></div><div class="term-wrap" id="term-wrap"></div><div class="term-bar" id="term-bar"></div>'
+    $('#app').appendChild(v)
+    $('#term-back').onclick = () => { location.hash = '#/' }
+    $('#term-restart').onclick = async () => { await fetch('/m/term/kill', { method: 'POST' }).catch(() => {}); toast('已重启终端'); termAttach(true) }
+    const icons = v.querySelectorAll('.ic-slot')
+    icons.forEach((n) => { const ic = ICONS[n.dataset.ic]; if (ic) n.innerHTML = ic })
+    // 特殊键工具条
+    const bar = $('#term-bar')
+    const key = (label, send, opts) => {
+      const b = el('button', 'term-key', label)
+      b.type = 'button'
+      b.onclick = () => { vibrate(6); opts && opts.toggle ? toggleCtrl(b) : termSend(send) ; if (TERM.xterm) TERM.xterm.focus() }
+      return b
+    }
+    bar.appendChild(key('Esc', '\x1b'))
+    bar.appendChild(key('Tab', '\t'))
+    const ctrlBtn = key('Ctrl', null, { toggle: true })
+    ctrlBtn.id = 'term-ctrl'
+    bar.appendChild(ctrlBtn)
+    bar.appendChild(key('←', '\x1b[D'))
+    bar.appendChild(key('↑', '\x1b[A'))
+    bar.appendChild(key('↓', '\x1b[B'))
+    bar.appendChild(key('→', '\x1b[C'))
+    bar.appendChild(key('^C', '\x03'))
+    bar.appendChild(key('^D', '\x04'))
+    bar.appendChild(key('^Z', '\x1a'))
+  }
+  v.classList.add('active')
+  termAttach()
+}
+function toggleCtrl(btn) {
+  TERM.ctrl = !TERM.ctrl
+  btn.classList.toggle('on', TERM.ctrl)
+  if (TERM.ctrl) toast('Ctrl 已按住：再点一个字母键')
+}
+function termSend(data) {
+  if (TERM.ctrl && data.length === 1 && /[a-z]/i.test(data)) {
+    data = String.fromCharCode(data.toUpperCase().charCodeAt(0) - 64)
+    TERM.ctrl = false
+    const b = $('#term-ctrl'); if (b) b.classList.remove('on')
+  }
+  fetch('/m/term/input', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data }) }).catch(() => {})
+}
+function closeTerm(keepView) {
+  if (TERM.es) { try { TERM.es.close() } catch (e) {} TERM.es = null }
+}
+async function termAttach(restart) {
+  const wrap = $('#term-wrap')
+  if (!wrap) return
+  try {
+    await loadXterm()
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state">终端组件加载失败<br>需要重启一次 dsh web（服务端路由更新）后才能使用</div>'
+    return
+  }
+  if (restart && TERM.xterm) { try { TERM.xterm.dispose() } catch (e) {} TERM.xterm = null }
+  if (!TERM.xterm) {
+    TERM.xterm = new Terminal({
+      fontSize: 13,
+      fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+      cursorBlink: true,
+      scrollback: 2000,
+      theme: { background: '#0b0e14', foreground: '#e8ebf1', cursor: '#3b82f6', selectionBackground: 'rgba(59,130,246,.3)' },
+      convertEol: false,
+    })
+    TERM.fit = new FitAddon.FitAddon()
+    TERM.xterm.loadAddon(TERM.fit)
+    wrap.textContent = ''
+    TERM.xterm.open(wrap)
+    TERM.xterm.onData((d) => termSend(d))
+  }
+  requestAnimationFrame(() => {
+    try { TERM.fit.fit() } catch (e) {}
+    const dims = TERM.fit && TERM.fit.proposeDimensions ? TERM.fit.proposeDimensions() : null
+    if (dims) fetch('/m/term/resize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(dims) }).catch(() => {})
+  })
+  if (TERM.es) { try { TERM.es.close() } catch (e) {} }
+  const es = new EventSource('/m/term/stream')
+  TERM.es = es
+  es.onmessage = (ev) => {
+    try {
+      const bin = atob(ev.data)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      TERM.xterm.write(bytes)
+    } catch (e) {}
+  }
+  es.onerror = () => { /* EventSource 自动重连，重连后服务端回放 */ }
+  // 视口变化重 fit（键盘弹起等）
+  if (!TERM._rsz) {
+    TERM._rsz = true
+    window.addEventListener('resize', () => {
+      if (!$('#view-term') || !$('#view-term').classList.contains('active') || !TERM.fit) return
+      try { TERM.fit.fit() } catch (e) {}
+      const dims = TERM.fit.proposeDimensions && TERM.fit.proposeDimensions()
+      if (dims) fetch('/m/term/resize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(dims) }).catch(() => {})
+    })
+  }
+  setTimeout(() => { if (TERM.xterm) TERM.xterm.focus() }, 300)
+}
+
 /* ================= 朗读（TTS）：Web Speech API，本地免费、即点即播 =================
  * 交互（与用户确认过的方案）：助手消息 meta 行 🔊＝朗读该条；播放时输入框上方浮播报条
  *（⏸ · 第 i/N 段 · 语速 · ✕）；⋯ 里「自动朗读」开关（默认关，轮结束自动读最后一条）；
@@ -3635,7 +3769,8 @@ function route() {
   const h = location.hash || '#/'
   ttsStop()   // 切走就别念了
   if (h === '#/proto') { S.current = null; showProto(); return }
-  closeProto()
+  if (h === '#/term') { S.current = null; showTerm(); return }
+  closeProto(); closeTerm()
   if (h.startsWith('#/s/')) { openSession(decodeURIComponent(h.slice(4))); updateTabs(); return }
   if (h === '#/new') { S.current = null; showView('new'); renderNew(); return }
   S.current = null
@@ -5009,6 +5144,7 @@ function buildShell() {
   <div class="view" id="view-list">
     <div class="navbar"><div class="bar">
       <div class="big-title">会话</div>
+      <button class="nav-btn" id="term-btn" type="button" aria-label="遥控终端"><span class="ic-slot" data-ic="terminal"></span></button>
       <button class="nav-btn" id="theme-toggle" type="button" aria-label="切换深浅色主题"></button>
       <span class="conn-pill" id="conn-pill" role="button" tabindex="0" aria-label="连接状态，断线时点按重连"><span class="dot"></span><span>连接中…</span></span>
     </div></div>
@@ -5504,6 +5640,8 @@ document.addEventListener('visibilitychange', () => {
   // 手机浏览器会挂起后台 tab 的 WS：回前台时按需重连
   Mux.reconnect()
 })
+const termBtn = $('#term-btn')
+if (termBtn) termBtn.onclick = () => { vibrate(8); location.hash = '#/term' }
 route()
 loadBase()
 /* Web Push：SW 常驻注册（不订阅、不弹权限——权限只在用户点「开启通知」时请求） */
