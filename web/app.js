@@ -2930,6 +2930,128 @@ function ttsWarm() {
   try { const u = new SpeechSynthesisUtterance(' '); speechSynthesis.cancel(); speechSynthesis.speak(u) } catch (e) {}
 }
 
+/* ================= 系统通知（Web Push）=================
+ * 设计（与用户确认）：默认只推「阻塞类」（等你审批 / 向你提问）；「回答完成」默认关可选；
+ * 同会话同类 5 分钟聚合；页面可见时 SW 静默；通知点击深链直达会话。 */
+let notifySub = null   // 当前浏览器的订阅（页面生命周期内缓存）
+function notifyStatusShort() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return '不支持'
+  if (Notification.permission === 'denied') return '被系统拒绝'
+  return Notification.permission === 'granted' ? (notifySub ? '已开启' : '权限已给·待订阅') : '未开启'
+}
+function notifyStandalone() {
+  return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+}
+function urlB64ToU8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4)
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'))
+  const out = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
+  return out
+}
+function openNotifyPanel(s) {
+  openSubPanel('notify', '消息通知', () => renderNotifyPanel(s))
+}
+async function renderNotifyPanel(s) {
+  const body = $('#sub-body')
+  if (!body) return
+  body.textContent = ''
+  body.appendChild(el('div', 'sheet-note', '不用开着这个页面：跑完、等你审批、向你提问时推送到手机系统通知，点开直达会话。'))
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    body.appendChild(el('div', 'sheet-note', '⚠️ 当前浏览器不支持系统通知'))
+    return
+  }
+  if (/iP(hone|ad|od)/.test(navigator.userAgent) && !notifyStandalone()) {
+    body.appendChild(el('div', 'sheet-note', '⚠️ iPhone/iPad 上只有「添加到主屏幕」后的图标入口才能收系统通知。请先用 Safari 打开本页 → 分享 → 添加到主屏幕，然后从主屏幕图标进入。'))
+    return
+  }
+  const perm = Notification.permission
+  const rows = el('div')
+  const statusRow = el('div', 'sheet-row')
+  const mid = el('div'); mid.style.minWidth = '0'; mid.style.flex = '1'
+  mid.appendChild(el('div', 'r-name', '通知状态'))
+  mid.appendChild(el('div', 'r-desc', perm === 'denied' ? '被系统拒绝过：需到系统设置 → 通知 → 找到本应用手动开启' : perm === 'granted' ? '系统权限已允许' : '尚未开启'))
+  statusRow.appendChild(mid)
+  statusRow.appendChild(el('span', 'r-val', perm === 'granted' ? '✓ 已允许' : perm === 'denied' ? '✗ 被拒' : '未开启'))
+  rows.appendChild(statusRow)
+  body.appendChild(rows)
+  // 订阅状态异步补齐（getRegistration 立即返回；navigator.serviceWorker.ready 在注册失败时会永久挂起，不能用）
+  let reg = null
+  try { reg = await navigator.serviceWorker.getRegistration('/m/') } catch (e) {}
+  if (reg) { try { notifySub = await reg.pushManager.getSubscription() } catch (e) {} }
+  if (perm !== 'granted' || !notifySub) {
+    const btn = el('button', 'ren-save', '开启通知')
+    btn.type = 'button'
+    btn.onclick = async () => {
+      vibrate(8)
+      btn.disabled = true; btn.textContent = '正在开启…'
+      try {
+        // iOS 权限必须在用户手势里请求；被拒一次就只能去系统设置
+        const p2 = await Notification.requestPermission()
+        if (p2 !== 'granted') { toast(p2 === 'denied' ? '被拒绝了：到 系统设置 → 通知 里手动开启' : '未开启', true); renderNotifyPanel(s); return }
+        if (!reg) reg = await navigator.serviceWorker.register('/m/sw.js', { scope: '/m/' })
+        const vapid = await (await fetch('/m/push/vapid')).json()
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(vapid.publicKey) })
+        const prefs = { done: localStorage.getItem('dshm-push-done') === '1' }
+        await fetch('/m/push/subscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), prefs }) })
+        notifySub = sub
+        toast('已开启系统通知 ✓')
+        renderNotifyPanel(s)
+      } catch (e) {
+        toast('开启失败：' + e.message, true)
+        renderNotifyPanel(s)
+      }
+    }
+    body.appendChild(btn)
+    return
+  }
+  // 已订阅：偏好 + 测试 + 关闭
+  const doneRow = btnize(el('div', 'sheet-row'))
+  const dm = el('div'); dm.style.minWidth = '0'; dm.style.flex = '1'
+  dm.appendChild(el('div', 'r-name', '回答完成也提醒'))
+  dm.appendChild(el('div', 'r-desc', '默认只推「等你审批 / 向你提问」；打开后每轮跑完也推（连续对话时可能偏多）'))
+  doneRow.appendChild(dm)
+  const dsw = el('span', 'tg-sw' + (localStorage.getItem('dshm-push-done') === '1' ? ' on' : ''))
+  doneRow.appendChild(dsw)
+  doneRow.onclick = async () => {
+    vibrate(8)
+    const nv = localStorage.getItem('dshm-push-done') !== '1'
+    try { localStorage.setItem('dshm-push-done', nv ? '1' : '0') } catch (e) {}
+    dsw.classList.toggle('on', nv)
+    if (notifySub) {
+      await fetch('/m/push/prefs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: notifySub.endpoint, prefs: { done: nv } }) }).catch(() => {})
+    }
+    toast(nv ? '已开启：跑完也提醒' : '已关闭：只推阻塞类')
+  }
+  body.appendChild(doneRow)
+  const testBtn = el('button', 'ren-save', '发送一条测试通知')
+  testBtn.type = 'button'
+  testBtn.onclick = async () => {
+    vibrate(8)
+    try {
+      const r = await (await fetch('/m/push/test', { method: 'POST' })).json()
+      toast(r.delivered > 0 ? '已发出 ' + r.delivered + ' 条（切到后台或锁屏看横幅）' : '没有生效的订阅', !r.delivered)
+    } catch (e) { toast('发送失败：' + e.message, true) }
+  }
+  body.appendChild(testBtn)
+  const offBtn = el('button', 'ren-save', '关闭通知')
+  offBtn.type = 'button'
+  offBtn.style.background = 'var(--bg-card)'
+  offBtn.style.color = 'var(--text-2)'
+  offBtn.style.marginTop = '8px'
+  offBtn.onclick = async () => {
+    vibrate(8)
+    try {
+      if (notifySub) await fetch('/m/push/unsubscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: notifySub.endpoint }) })
+      if (notifySub) await notifySub.unsubscribe()
+      notifySub = null
+      toast('已关闭系统通知')
+      renderNotifyPanel(s)
+    } catch (e) { toast('关闭失败：' + e.message, true) }
+  }
+  body.appendChild(offBtn)
+}
+
 /* ---- 排队/插话 chip 条（输入框上方固定，点按出操作单） ---- */
 function renderQueueStrip(s) {
   const strip = $('#q-strip')
@@ -4005,6 +4127,7 @@ function renderSheet(s) {
     }
     c.appendChild(row)
   }
+  c.appendChild(valueRow('消息通知', '跑完 / 等你审批 / 向你提问时推送（页面不用开着）', notifyStatusShort(), () => openNotifyPanel(s)))
   // ---- 统计（摘要值，点开看全量）----
   const p = s.ctxPressure
   const statVal = p && p.contextWindow ? Math.round(p.pressureTokens / p.contextWindow * 100) + '% · ' + fmtCtxTok(p.pressureTokens) : '—'
@@ -5383,6 +5506,10 @@ document.addEventListener('visibilitychange', () => {
 })
 route()
 loadBase()
+/* Web Push：SW 常驻注册（不订阅、不弹权限——权限只在用户点「开启通知」时请求） */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(127\.0\.0\.1|localhost)$/.test(location.hostname))) {
+  navigator.serviceWorker.register('/m/sw.js', { scope: '/m/' }).catch(() => {})
+}
 Mux.connect()
 /* 键盘可达：role=button 的元素统一 Enter/Space 触发 click（自带 onkeydown 的跳过，避免双发） */
 document.addEventListener('keydown', (e) => {
