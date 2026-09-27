@@ -1740,7 +1740,13 @@ function deriveWorkspaces() {
 }
 function applyListValues(s, values) {
   if (!values || typeof values !== 'object') return
-  if (typeof values.title === 'string' && values.title) s.title = values.title
+  if (typeof values.title === 'string' && values.title) {
+    const changed = s.title !== values.title
+    s.title = values.title
+    // 列表刷新拿到新标题时，若正开着该会话，同步顶栏（否则分叉后 loadBase 先到、投影去重，
+    // header 会一直卡在 openSession 那一刻读到的"新会话"）
+    if (changed && S.current === s.id) { const t = $('#chat-title'); if (t) t.textContent = sessTitle(s) }
+  }
   if (values.permissions && Array.isArray(values.permissions.options)) s.permissions = values.permissions
   if (values.imageLimits) s.imageLimits = values.imageLimits
   if (values.modelSelection && values.modelSelection.next) s.modelSel = values.modelSelection.next
