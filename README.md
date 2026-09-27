@@ -62,7 +62,6 @@ Prerequisite: desktop `dsh` CLI installed.
 }
 ```
 
-> Not on npm yet? Use `"dsh-pwa": "github:jackxu925/dsh-pwa"` instead.
 
 **2.** Install and start (add your access domain to the trust fence when the phone connects from outside):
 
