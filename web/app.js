@@ -2853,7 +2853,7 @@ function renderGoalBanner(s) {
   const g = s.goal
   const info = g && goalPhaseInfo(g)
   if (!info) { bar.style.display = 'none'; return }
-  bar.style.display = ''
+  bar.style.display = 'flex'   // 样式表里 .goal-bar 是 display:none（默认隐藏），这里必须显式 flex——写 '' 会被样式表压回隐藏
   bar.className = 'goal-bar ' + info.cls
   const rounds = g.roundsStarted != null ? ' · 第 ' + (g.roundsStarted + 1) + ' 轮' : ''
   bar.textContent = ''
@@ -4184,6 +4184,7 @@ function renderSheet(s) {
     } catch (e) { toast('归档失败：' + e.message, true) }
   }))
   c.appendChild(el('div', 'sheet-note', '点带 › 的行进入对应设置。'))
+  c.appendChild(el('div', 'sheet-note', 'DSH PWA v1.13.0'))
 }
 /* 重命名：⋯ → 会话 → 重命名，就地编辑保存 */
 function openRenamePanel(s) {
