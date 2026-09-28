@@ -665,6 +665,14 @@ function foldEvent(s, event, view) {
       break
     }
     case 'session/title': if (d.title) s.title = d.title; break
+    case 'goal/change': {
+      // 目标变更标记：create/edit/pause/resume/complete/clear → 极简系统行
+      const opMap = { create: '已创建', edit: '已修改', pause: '已暂停', resume: '已恢复', complete: '已完成', clear: '已删除', blocked: '被卡住' }
+      const label = opMap[d.operation] || d.operation
+      s.items.push({ kind: 'sys', goalMark: '🎯 目标' + label, time: event.time, seq: event.seq })
+      if (S.current === s.id) scheduleRender(s)
+      break
+    }
     case 'model/selection': {
       // 模型切换标记：渲染成极简系统行（→ 名字 · 强度），回看长会话能知道每段是哪个模型
       // 同一手势的连续选择（选模型、紧跟选强度）合并成一条，不刷屏
@@ -1246,6 +1254,11 @@ function itemNodeInner(s, item) {
     case 'sys': {
       const d = el('div', null)
       d.style.cssText = 'align-self:center;font-size:12.5px;color:var(--text-3);padding:4px 0;display:flex;align-items:center;gap:6px'
+      if (item.goalMark) {
+        d.appendChild(el('span', 'msw-dot'))
+        d.appendChild(el('span', 'msw-tx', item.goalMark))
+        return d
+      }
       if (item.modelSel) {
         // 模型切换标记行：名字由目录解析（目录没到就用原始 id，目录到了再刷）
         const dot = el('span', 'msw-dot')
@@ -1748,6 +1761,11 @@ function applyListValues(s, values) {
     if (changed && S.current === s.id) { const t = $('#chat-title'); if (t) t.textContent = sessTitle(s) }
   }
   if (values.permissions && Array.isArray(values.permissions.options)) s.permissions = values.permissions
+  if ('goal' in values) {
+    const prev = s.goal
+    s.goal = values.goal || null   // null＝目标已清除
+    if (S.current === s.id && JSON.stringify(prev) !== JSON.stringify(s.goal)) renderGoalBanner(s)
+  }
   if (values.imageLimits) s.imageLimits = values.imageLimits
   if (values.modelSelection && values.modelSelection.next) s.modelSel = values.modelSelection.next
   if ('todos' in values) setTodos(s, values.todos)
@@ -2394,6 +2412,15 @@ Mux.handlers.events = (v) => {
         renderListSoon()
         break
       }
+      case 'goal/activation-changed': {
+        // 其它端（桌面）改了目标：跟 control 投影流不同，goal 走这条事件
+        const ev = a[0] || {}
+        if (ev.sessionId) {
+          const s2 = sess(ev.sessionId)
+          if (ev.goal) { s2.goal = { goal: ev.goal } ; if (S.current === s2.id) renderGoalBanner(s2) }
+        }
+        break
+      }
       case 'api-session/activity': {
         const s = sess(a[0]); s.updatedAt = a[1] || Date.now()
         renderListSoon()
@@ -2580,6 +2607,7 @@ function reloadCurrent() {
   loadHistory(s).then(() => renderChat(s)).catch(() => {})
 }
 function refreshChatChrome(s) {
+  renderGoalBanner(s)   // 目标横幅：进会话与状态刷新时同步
   const off = S.connState !== 'online'
   const input = $('#chat-input')
   if (input) {
@@ -2810,6 +2838,111 @@ function renderStaleStrip() {
   x.onclick = () => { S.staleNotice = null; renderStaleStrip(); vibrate(8) }
   strip.appendChild(x)
 }
+/* ================= 目标（Goal）管理：横幅 + 操作面板 =================
+ * 投影带全套状态（objective/phase/rounds）；控制走宿主 goals/* RPC（CAS ref={id,revision}）。 */
+function goalPhaseInfo(g) {
+  const ph = g && g.goal && g.goal.phase
+  if (ph === 'active') return { cls: 'on', label: '进行中' }
+  if (ph === 'paused') return { cls: 'paused', label: '已暂停' }
+  if (ph === 'blocked') return { cls: 'blocked', label: '被卡住' }
+  return null   // complete / 无目标：不显示
+}
+function renderGoalBanner(s) {
+  const bar = $('#goal-bar')
+  if (!bar) return
+  const g = s.goal
+  const info = g && goalPhaseInfo(g)
+  if (!info) { bar.style.display = 'none'; return }
+  bar.style.display = ''
+  bar.className = 'goal-bar ' + info.cls
+  const rounds = g.roundsStarted != null ? ' · 第 ' + (g.roundsStarted + 1) + ' 轮' : ''
+  bar.textContent = ''
+  const ic = el('span', 'gb-ic', '🎯')
+  const mid = el('span', 'gb-mid', '目标' + rounds + ' · ' + info.label)
+  const obj = el('span', 'gb-obj', (g.goal.objective || '').slice(0, 40) + ((g.goal.objective || '').length > 40 ? '…' : ''))
+  bar.append(ic, mid, obj)
+  bar.onclick = () => { vibrate(8); openGoalPanel(s) }
+}
+async function goalRpc(s, method, extra) {
+  const g = s.goal && s.goal.goal
+  if (!g) { toast('没有可操作的目标', true); return null }
+  try {
+    const v = await rpc(method, { agentId: s.id, ref: { id: g.id, revision: g.revision }, ...(extra || {}) })
+    // goal 变更不走 control 投影流（只有 goal/activation-changed 事件）：成功后主动回读一次，横幅立刻跟上
+    try { const g2 = await rpc('goals/get', { agentId: s.id }); s.goal = (g2 && g2.id) ? { goal: g2, roundsStarted: s.goal ? s.goal.roundsStarted : undefined } : null } catch (e2) {}   // goals/get 返回目标本体；clear 后返回空 → 置 null（横幅消失）
+    renderGoalBanner(s)
+    return v
+  } catch (e) {
+    toast('操作失败：' + e.message, true)
+    return null
+  }
+}
+function openGoalPanel(s) {
+  let ov = $('#goal-ov')
+  if (!ov) {
+    ov = el('div', 'sheet-overlay')
+    ov.id = 'goal-ov'
+    ov.innerHTML = '<div class="sheet goal-sheet"><div class="grabber"></div><div class="qd-head"><span class="qd-title">🎯 目标</span><span class="qd-cnt"></span><button class="think-close" id="goal-close" type="button" aria-label="关闭">✕</button></div><div class="sheet-scroll q-body" id="goal-body"></div></div>'
+    document.querySelector('#app').appendChild(ov)
+    ov.addEventListener('click', (e) => { if (e.target === ov) closeGoalPanel() })
+  }
+  $('#goal-close').onclick = closeGoalPanel
+  renderGoalPanel(s)
+  ovSet('goal-ov', true)
+}
+function closeGoalPanel() { ovSet('goal-ov', false) }
+function renderGoalPanel(s) {
+  const body = $('#goal-body')
+  if (!body) return
+  body.textContent = ''
+  const g = s.goal
+  if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', '这个会话当前没有目标。')); return }
+  const info = goalPhaseInfo(g) || { cls: '', label: g.goal.phase === 'complete' ? '已完成' : '未知' }
+  body.appendChild(el('div', 'goal-obj', g.goal.objective || ''))
+  const meta = el('div', 'goal-meta')
+  meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮' + (g.goal.maxGoalRounds ? ' / 上限 ' + g.goal.maxGoalRounds : '') + '</span>'
+  body.appendChild(meta)
+  if (g.goal.blockedReason) body.appendChild(el('div', 'goal-blocked', '⚠️ 卡住原因：' + g.goal.blockedReason.message))
+  const phase = g.goal.phase
+  const mkBtn = (label, fn, primary, danger) => {
+    const b = el('button', 'goal-btn' + (primary ? ' primary' : '') + (danger ? ' danger' : ''), label)
+    b.type = 'button'
+    b.onclick = async () => {
+      vibrate(8)
+      b.disabled = true; b.textContent = '处理中…'
+      const v = await fn()
+      if (v === 'keep') return   // 内部自管 UI（如编辑框），不重渲染
+      if (v) { closeGoalPanel(); toast('已更新 ✓') }
+      else renderGoalPanel(s)
+    }
+    return b
+  }
+  const row = el('div', 'goal-btns')
+  if (phase === 'active') row.appendChild(mkBtn('⏸ 暂停', () => goalRpc(s, 'goals/pause'), true))
+  if (phase === 'paused' || phase === 'blocked') row.appendChild(mkBtn('▶ 继续', () => goalRpc(s, 'goals/resume'), true))
+  if (phase !== 'complete') {
+    row.appendChild(mkBtn('✏️ 编辑', async () => {
+      const box = document.createElement('textarea')
+      box.className = 'goal-edit'
+      box.value = g.goal.objective || ''
+      const save = async () => {
+        const t = box.value.trim()
+        if (!t) { toast('目标不能为空', true); return null }
+        return goalRpc(s, 'goals/edit', { request: { objective: t } })
+      }
+      body.appendChild(box)
+      const r2 = el('button', 'goal-btn primary', '保存目标')
+      r2.type = 'button'
+      r2.onclick = async () => { const v = await save(); if (v) { closeGoalPanel(); toast('目标已更新 ✓') } }
+      body.appendChild(r2)
+      return 'keep'   // 内部自管：外层不要重渲染（会把刚弹出的编辑框抹掉）
+    }))
+    row.appendChild(mkBtn('🗑 删除目标', () => goalRpc(s, 'goals/clear'), false, true))
+  }
+  body.appendChild(row)
+  body.appendChild(el('div', 'sheet-note', '目标由 agent 在长任务时创建：暂停后它跑完本轮即停，删除后不再自动继续。'))
+}
+
 /* ================= 朗读（TTS）：Web Speech API，本地免费、即点即播 =================
  * 交互（与用户确认过的方案）：助手消息 meta 行 🔊＝朗读该条；播放时输入框上方浮播报条
  *（⏸ · 第 i/N 段 · 语速 · ✕）；⋯ 里「自动朗读」开关（默认关，轮结束自动读最后一条）；
@@ -4916,6 +5049,7 @@ function buildShell() {
       <span class="tb-cnt" id="tb-cnt"></span>
       <span class="tb-track"><i class="tb-fill" id="tb-fill"></i></span>
     </div>
+    <div class="goal-bar" id="goal-bar" role="button" tabindex="0" aria-label="目标" style="display:none"></div>
     <div class="chat-scroll" id="chat-scroll"></div>
     <button class="q-handle" id="q-handle" type="button" aria-label="问过的问题" aria-expanded="false"><span class="qh-ic" data-ic="qlist"></span></button>
     <div class="q-scrim" id="q-scrim"></div>
