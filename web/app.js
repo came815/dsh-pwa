@@ -2891,13 +2891,45 @@ function openGoalPanel(s) {
   ovSet('goal-ov', true)
 }
 function closeGoalPanel() { ovSet('goal-ov', false) }
-function renderGoalPanel(s) {
+function renderGoalPanel(s, editing) {
   const body = $('#goal-body')
   if (!body) return
   body.textContent = ''
   const g = s.goal
   if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', '这个会话当前没有目标。')); return }
   const info = goalPhaseInfo(g) || { cls: '', label: g.goal.phase === 'complete' ? '已完成' : '未知' }
+  if (editing) {
+    // —— 编辑模式：目标文本就地变输入框，按钮换成 取消/保存 ——
+    body.appendChild(el('div', 'sheet-note', '修改目标文本：agent 从下一轮起按新目标继续。'))
+    const box = el('textarea', 'goal-edit')
+    box.value = g.goal.objective || ''
+    box.setAttribute('aria-label', '目标内容')
+    body.appendChild(box)
+    const meta = el('div', 'goal-meta')
+    meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮</span>'
+    body.appendChild(meta)
+    const row = el('div', 'goal-btns')
+    const cancel = el('button', 'goal-btn', '取消')
+    cancel.type = 'button'
+    cancel.onclick = () => { vibrate(6); renderGoalPanel(s) }
+    const save = el('button', 'goal-btn primary', '保存目标')
+    save.type = 'button'
+    save.onclick = async () => {
+      const t = box.value.trim()
+      if (!t) { toast('目标不能为空', true); return }
+      vibrate(8)
+      save.disabled = true; cancel.disabled = true
+      save.textContent = '保存中…'
+      const v = await goalRpc(s, 'goals/edit', { request: { objective: t } })
+      if (v) { closeGoalPanel(); toast('目标已更新 ✓') }
+      else { save.disabled = false; cancel.disabled = false; save.textContent = '保存目标' }   // 失败：留在编辑态，内容不丢
+    }
+    row.append(cancel, save)
+    body.appendChild(row)
+    setTimeout(() => { box.focus(); box.setSelectionRange(box.value.length, box.value.length) }, 120)
+    return
+  }
+  // —— 查看模式 ——
   body.appendChild(el('div', 'goal-obj', g.goal.objective || ''))
   const meta = el('div', 'goal-meta')
   meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮' + (g.goal.maxGoalRounds ? ' / 上限 ' + g.goal.maxGoalRounds : '') + '</span>'
@@ -2911,7 +2943,6 @@ function renderGoalPanel(s) {
       vibrate(8)
       b.disabled = true; b.textContent = '处理中…'
       const v = await fn()
-      if (v === 'keep') return   // 内部自管 UI（如编辑框），不重渲染
       if (v) { closeGoalPanel(); toast('已更新 ✓') }
       else renderGoalPanel(s)
     }
@@ -2921,22 +2952,7 @@ function renderGoalPanel(s) {
   if (phase === 'active') row.appendChild(mkBtn('⏸ 暂停', () => goalRpc(s, 'goals/pause'), true))
   if (phase === 'paused' || phase === 'blocked') row.appendChild(mkBtn('▶ 继续', () => goalRpc(s, 'goals/resume'), true))
   if (phase !== 'complete') {
-    row.appendChild(mkBtn('✏️ 编辑', async () => {
-      const box = document.createElement('textarea')
-      box.className = 'goal-edit'
-      box.value = g.goal.objective || ''
-      const save = async () => {
-        const t = box.value.trim()
-        if (!t) { toast('目标不能为空', true); return null }
-        return goalRpc(s, 'goals/edit', { request: { objective: t } })
-      }
-      body.appendChild(box)
-      const r2 = el('button', 'goal-btn primary', '保存目标')
-      r2.type = 'button'
-      r2.onclick = async () => { const v = await save(); if (v) { closeGoalPanel(); toast('目标已更新 ✓') } }
-      body.appendChild(r2)
-      return 'keep'   // 内部自管：外层不要重渲染（会把刚弹出的编辑框抹掉）
-    }))
+    row.appendChild(mkBtn('✏️ 编辑', () => { renderGoalPanel(s, true); return 'keep' }))
     row.appendChild(mkBtn('🗑 删除目标', () => goalRpc(s, 'goals/clear'), false, true))
   }
   body.appendChild(row)
