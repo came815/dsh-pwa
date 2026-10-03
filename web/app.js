@@ -982,6 +982,12 @@ function skeletonNode() {
 
 function renderChat(s, forceScroll) {
   if (S.current !== s.id) return
+  // 幽灵清扫：double-steer / 事件先到等竞态下留下的「永远插话中」回显——
+  // 只要同文本已有落地消息，这条回显就是鬼，删掉（通常列表里没有 steerEcho，零开销）
+  if (s.items.some((x) => x.steerEcho)) {
+    const settled = s.items.filter((x) => x.kind === 'user' && !x.steerEcho && !x.pending).map((x) => (x.text || '').slice(0, 24))
+    s.items = s.items.filter((x) => !(x.steerEcho && (x.text || '').slice(0, 24) !== '' && settled.includes((x.text || '').slice(0, 24))))
+  }
   const sc = chatScrollEl()
   if (!sc) return
   // 钉不钉看「用户意图」而不是此刻位置：图片撑开/内容抖动造成的瞬时脱底不该永久取消跟随；
@@ -3085,6 +3091,7 @@ function renderQueueStrip(s) {
   if (!strip) return
   strip.textContent = ''
   const items = (s.queue || []).filter((q) => {
+    if (s._steeredIds && s._steeredIds.has(q.id)) return false   // 已插话的条目：宿主旧帧再广播也不让 chip 复现（防二次插话幽灵）
     const rid = q.message && q.message.source && (q.message.source.requestId || q.message.source.rpcId)
     if (rid && s.items.some((x) => x.kind === 'user' && x.rpcId === rid)) return false  // rpcId 匹配的乐观气泡已显示
     // 修复：队列广播的 source 是空对象（无 requestId），按文本兜底去重——
@@ -3155,6 +3162,8 @@ function openQSheet(s, q) {
     vibrate(8)
     try {
       await rpc('session/updateQueue', { request: { sessionId: sid, itemId, action: { kind: 'steer' } } })
+      s._steeredIds = s._steeredIds || new Set()
+      s._steeredIds.add(itemId)   // 宿主队列帧有延迟，可能把已插话的条目再广播回来（chip 复现→二次插话→幽灵回显）；本地永久屏蔽
       // 乐观上屏（桌面同款语义）：宿主要等 agent 消费才产生 user/message 事件，
       // 在此之前 chip 就该消失、消息就该出现在对话流里，等到持久事件再就地转正
       const qi = (s.queue || []).findIndex((x) => x.id === itemId)
@@ -3163,6 +3172,14 @@ function openQSheet(s, q) {
       const content = (qm && qm.message && qm.message.content) || []
       const text = textOf(content)
       const images = imageBlocksOf(content)
+      // 防幽灵：同一文本若已落地（事件先到）或已有待转正回显（重复点插话），不再回显第二次
+      const t24 = (text || '').slice(0, 24)
+      if (t24 && s.items.some((x) => x.kind === 'user' && (x.text || '').slice(0, 24) === t24)) {
+        toast('已转为插话 ⚡')
+        closeQSheet()
+        renderQueueStrip(s)
+        return
+      }
       const src = qm && qm.message && qm.message.source
       const rid = src && (src.requestId || src.rpcId) || null   // 与持久事件的 source.rpcId 同值：到了就地转正（现成去重逻辑）
       s.items.push({ kind: 'user', text, images: images.length ? images : null, time: Date.now(), pending: true, steering: true, steerEcho: true, rpcId: rid })
