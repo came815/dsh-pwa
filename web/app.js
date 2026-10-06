@@ -1899,6 +1899,12 @@ function seenBootstrap() {
   try { localStorage.setItem('dshm-seen', JSON.stringify(m)); localStorage.setItem('dshm-seen-boot', '1') } catch (e) {}
 }
 function isUnread(s) { const m = seenGet(); return !s.running && s.id !== S.current && (s.asOfSeq || 0) > (m[s.id] || 0) }
+function markSeenNow(s) {   // 以「当前已知最大 seq」记已读（打开/离开会话时用）
+  if (!s || !s.id) return
+  let mx = s.asOfSeq || 0
+  for (const it of s.items || []) if (it.seq > mx) mx = it.seq
+  seenMark(s.id, mx)
+}
 /* 补拉尾部：取最后一条有字的助手消息当列表预览 */
 async function refreshPreview(s, asOf) {
   if (s._tailFetching) return
@@ -2604,6 +2610,7 @@ async function openSession(id, force) {
   } else {
     // 已有内容：把 follow 流切到本会话（后台继续接收事件）
     Mux.setFollow(id)
+    markSeenNow(s)   // 修复：已加载过的会话再次打开也要记已读——否则新事件带来的蓝点点进去也不消
   }
   renderChat(s, true)
   refreshChatChrome(s)
@@ -3681,6 +3688,8 @@ function closeProto() { if (protoView) { protoView.remove(); protoView = null } 
 function route() {
   const h = location.hash || '#/'
   ttsStop()   // 切走就别念了
+  // 离开会话：把「看到现在」记为已读（覆盖观看期间静默折叠进来的事件；正在运行的轮由 turn/end 实时记）
+  if (S.current && S.sessions.has(S.current) && !h.startsWith('#/s/' + S.current)) markSeenNow(S.sessions.get(S.current))
   if (h === '#/proto') { S.current = null; showProto(); return }
   closeProto()
   if (h.startsWith('#/s/')) { openSession(decodeURIComponent(h.slice(4))); updateTabs(); return }
