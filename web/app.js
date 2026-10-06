@@ -1680,6 +1680,7 @@ function openSessionMenu(sid, x, y, expandRename) {
     try {
       await rpc('session/rename', { request: { sessionId: sid, title: t } })
       s.title = t
+      s._titleAt = Date.now()   // 改名后短窗内本地胜出：在途的旧 title 投影/列表响应不得把它改回去（保存无效 bug）
       closeSessionMenu()
       renderList()
       toast('已重命名 ✓')
@@ -1760,6 +1761,7 @@ function deriveWorkspaces() {
 function applyListValues(s, values) {
   if (!values || typeof values !== 'object') return
   if (typeof values.title === 'string' && values.title) {
+    if (s._titleAt && Date.now() - s._titleAt < 5000 && values.title !== s.title) return   // 刚改过名：在途旧 title 一律忽略（真值已由改名 RPC 落地）
     const changed = s.title !== values.title
     s.title = values.title
     // 列表刷新拿到新标题时，若正开着该会话，同步顶栏（否则分叉后 loadBase 先到、投影去重，
@@ -2301,6 +2303,7 @@ function followAddress(id) {
 function applyProjection(s, values) {
   if (!values || typeof values !== 'object') return
   if (typeof values.title === 'string' && values.title && s.title !== values.title) {
+    if (s._titleAt && Date.now() - s._titleAt < 5000) return   // 刚改过名：挡在途旧投影帧（新值已本地在位）
     s.title = values.title
     renderListSoon()
     if (S.current === s.id) { const t = $('#chat-title'); if (t) t.textContent = sessTitle(s) }
@@ -4235,6 +4238,7 @@ function openRenamePanel(s) {
       try {
         const v = await rpc('session/rename', { request: { sessionId: s.id, title: t } })
         if (v && v.title !== undefined) s.title = v.title   // 用宿主回的规整标题（随后 session/title 事件也会到）
+        s._titleAt = Date.now()   // 同左滑改名：短窗内本地胜出，挡在途旧帧
         closeSubPanel(); closeSheet()
         renderListSoon()
         renderChat(s, true)   // 顶部标题/列表刷新
