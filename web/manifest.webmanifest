@@ -1,6 +1,7 @@
 {
   "name": "DeepSeek Harness",
   "short_name": "Harness",
+  "lang": "ja",
   "description": "ローカルLLM用のスマホ画面",
   "start_url": "/m/",
   "scope": "/m/",
