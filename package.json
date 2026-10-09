@@ -1,6 +1,6 @@
 {
   "name": "dsh-local-pwa",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Authenticated phone-first DeepSeek Harness PWA with a fixed local /m asset surface and Japanese interface.",
   "author": "jackxu925",
@@ -27,7 +27,7 @@
   "exports": "./index.js",
   "license": "MIT",
   "scripts": {
-    "test": "node --test server.test.js"
+    "test": "node --test server.test.js localization.test.js"
   },
   "files": [
     "index.js",

@@ -2,7 +2,9 @@
 
 This is a maintained fork of [jackxu925/dsh-pwa](https://github.com/jackxu925/dsh-pwa), based on `d734b0ffce5f0366a38a25e190fe2099caf0020f`. Original work by jackxu925; adaptations by came815. The original MIT license and copyright remain in [LICENSE](LICENSE). Original documentation and metadata are preserved under [upstream/](upstream/).
 
-スマホから既存Harnessの会話・モデル・画像添付・実行承認を操作するPWAです。主要操作を日本語化し、すべてのモバイル配信に既存の認証・Host/Origin検証を適用しました。今後の使い勝手の改善もこのForkで管理します。
+スマホから既存Harnessの会話・モデル・画像添付・実行承認を操作するPWAです。設定・通知・日付・説明画面を含む固定の表示文を日本語化し、すべてのモバイル配信に既存の認証・Host/Origin検証を適用しました。今後の使い勝手の改善もこのForkで管理します。
+
+更新後はPWAを再読み込みしてください。読み上げは日本語の音声を優先します。会話本文・モデル名・ツールの出力などのデータは原文を保ち、以前の引用もそのまま読み込めます。
 
 ## 導入
 
@@ -60,6 +62,6 @@ $env:DSH_RUNTIME_PACKAGE_ROOT='/absolute/path/to/node_modules/@deepseek-ai/dsh-c
 npm.cmd test
 ```
 
-テストは固定配信・認証委譲・Host/Origin・CSP・外部リンク保護を確認します。UI変更は393×852とデスクトップ/reflowで実画面を確認し、入力欄・承認ボタン・横はみ出しも確認します。実行操作は模擬データを使い、既存の作業やGPU推論を動かしません。
+テストは固定配信・認証委譲・Host/Origin・CSP・外部リンク保護・既存引用の復元・日本語読み上げを確認します。UI変更は393×852とデスクトップ/reflowで実画面を確認し、入力欄・承認ボタン・横はみ出しも確認します。実行操作は模擬データを使い、既存の作業やGPU推論を動かしません。
 
 このForkでブランチ・commitを作り、`origin`へpushします。`upstream`は更新確認用です。元プロジェクトへのIssue・PR・コメントは自動では送りません。上流更新は差分を確認し、認証とブラウザーの回帰確認後に取り込みます。

@@ -15,7 +15,7 @@
   --red: #ff453a;
   --purple: #bf5af2;
   --nav-h: 56px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
   /* Emil 式自定义缓动：内置 ease 太弱 */
   --accent-fill: #2563eb;  /* 承载白字的填充（用户气泡/FAB/主按钮等），白字 5.17:1；--accent 只当深底文字/图标色 */

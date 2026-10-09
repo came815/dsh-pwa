@@ -126,16 +126,16 @@ function fmtTime(ts) {
   const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0')
   if (d.toDateString() === now.toDateString()) return hm
   const y = new Date(now); y.setDate(now.getDate() - 1)
-  if (d.toDateString() === y.toDateString()) return '昨天 ' + hm
+  if (d.toDateString() === y.toDateString()) return '昨日 ' + hm
   const md = (d.getMonth() + 1) + '月' + d.getDate() + '日'
   if (d.getFullYear() !== now.getFullYear()) return d.getFullYear() + '年' + md
   return md + ' ' + hm
 }
 function dayLabel(ts) {
   const d = new Date(ts), now = new Date()
-  if (d.toDateString() === now.toDateString()) return '今天'
+  if (d.toDateString() === now.toDateString()) return '今日'
   const y = new Date(now); y.setDate(now.getDate() - 1)
-  if (d.toDateString() === y.toDateString()) return '昨天'
+  if (d.toDateString() === y.toDateString()) return '昨日'
   const md = (d.getMonth() + 1) + '月' + d.getDate() + '日'
   return d.getFullYear() !== now.getFullYear() ? d.getFullYear() + '年' + md : md
 }
@@ -188,7 +188,7 @@ function md(src) {
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
   s = s.replace(/(^|[^*\w])\*([^*\n]+)\*(?![\w*])/g, '$1<em>$2</em>')   // 斜体（粗体已先行转换）
   s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>')                        // 删除线
-  s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">[图]$1</a>')  // 图片语法 → 链接（不残留感叹号）
+  s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">[画像]$1</a>')  // 图片语法 → 链接（不残留感叹号）
   s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
   const lines = s.split('\n')
   let html = '', list = null, para = [], table = []
@@ -247,7 +247,7 @@ async function rpc(endpoint, args, rpcId, timeoutMs) {
   })
   if (!r.ok) {
     if (r.status === 401) markAuthExpired()
-    throw new Error(endpoint + ': HTTP ' + r.status + (r.status === 401 ? '（登录已过期）' : r.status === 403 ? '（主机不在信任名单）' : ''))
+    throw new Error(endpoint + ': HTTP ' + r.status + (r.status === 401 ? '（認証の有効期限が切れています）' : r.status === 403 ? '（接続先が許可されていません）' : ''))
   }
   const full = await r.json()
   if (!full.result || !full.result.ok) {
@@ -346,7 +346,7 @@ function imageBlocksOf(content) {
 }
 function attachImgEl(s, ref) {
   const img = el('img', 'msg-img')
-  img.alt = '图片'
+  img.alt = '画像'
   img.loading = 'lazy'
   const cached = attachCache.get(ref.attachmentId)
   const ar = ref.ar || (cached && cached.ar)
@@ -368,7 +368,7 @@ function attachImgEl(s, ref) {
     })
     .catch(() => {
       // 失败不静默移除：留下可重试的占位，避免メッセージ「少了一块」而用户无感知
-      const box = el('button', 'img-fail', '图片加载失败 · タップして再試行')
+      const box = el('button', 'img-fail', '画像を読み込めませんでした · タップして再試行')
       box.type = 'button'
       box.onclick = () => box.replaceWith(attachImgEl(s, ref))
       img.replaceWith(box)
@@ -378,9 +378,9 @@ function attachImgEl(s, ref) {
 /* 读取+压缩（长边 1600 / 超限转 jpeg） */
 function fileToImage(file) {
   return new Promise((resolve, reject) => {
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { reject(new Error('仅支持 png/jpeg/webp/gif 图片')); return }
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { reject(new Error('対応する画像形式はpng・jpeg・webp・gifです')); return }
     const reader = new FileReader()
-    reader.onerror = () => reject(new Error('读取图片失败'))
+    reader.onerror = () => reject(new Error('画像を読み込めませんでした'))
     reader.onload = () => {
       const img = new Image()
       img.onload = () => {
@@ -399,7 +399,7 @@ function fileToImage(file) {
           resolve({ mediaType, data: String(dataUrl).split(',')[1], previewUrl: dataUrl, name: file.name || 'image', width: outW, height: outH })
         } catch (e) { reject(e) }
       }
-      img.onerror = () => reject(new Error('图片解析失败'))
+      img.onerror = () => reject(new Error('画像を解析できませんでした'))
       img.src = reader.result
     }
     reader.readAsDataURL(file)
@@ -500,7 +500,7 @@ function foldEvent(s, event, view) {
       }
       s.items.push({ kind: 'user', text, images: images.length ? images : null, time: event.time, seq: event.seq, rpcId: rid || null })
       s._qStale = true   // 「質問一覧」的缓存/计数作废，下次打开重算
-      s.lastPreview = text || '[图片]'
+      s.lastPreview = text || '[画像]'
       break
     }
     case 'step/start':
@@ -654,10 +654,10 @@ function foldEvent(s, event, view) {
       endLive(s, null, null)
       const r = d.reason || {}
       if (r.kind === 'error') {
-        const msg = (r.error && (r.error.message || r.error.code)) || '未知错误'
-        s.items.push({ kind: 'sys', text: '⚠️ 本轮出错：' + msg, time: event.time })
+        const msg = (r.error && (r.error.message || r.error.code)) || '不明なエラー'
+        s.items.push({ kind: 'sys', text: '⚠️ この応答でエラーが発生しました：' + msg, time: event.time })
       } else if (r.kind === 'interrupted') {
-        s.items.push({ kind: 'sys', text: '⏹ 已中断', time: event.time })
+        s.items.push({ kind: 'sys', text: '⏹ 中断しました', time: event.time })
       }
       // 攒下来的思考若一直没等到承载它的内容（例如本轮只说了一句思考就结束），
       // 落成一条极简的「思考内容」行，既不丢内容也不产生空泡泡
@@ -667,7 +667,7 @@ function foldEvent(s, event, view) {
     case 'session/title': if (d.title) s.title = d.title; break
     case 'goal/change': {
       // 目標变更标记：create/edit/pause/resume/complete/clear → 极简系统行
-      const opMap = { create: '已创建', edit: '已修改', pause: '已暂停', resume: '已恢复', complete: '已完成', clear: '已删除', blocked: '被卡住' }
+      const opMap = { create: '作成済み', edit: '変更済み', pause: '一時停止中', resume: '再開済み', complete: '完了', clear: '削除済み', blocked: '保留中' }
       const label = opMap[d.operation] || d.operation
       s.items.push({ kind: 'sys', goalMark: '🎯 目標' + label, time: event.time, seq: event.seq })
       if (S.current === s.id) scheduleRender(s)
@@ -720,9 +720,9 @@ function toolNode(item) {
   if (item.reasoning && item.reasoning.trim()) head.appendChild(thinkDot(() => openThink({ text: item.reasoning, live: false })))
   const tq = el('button', 'meta-ico')
   tq.type = 'button'
-  tq.setAttribute('aria-label', '引用这次调用（命令+输出）')
+  tq.setAttribute('aria-label', 'このツールの実行内容と出力を引用')
   tq.innerHTML = ICONS.quote
-  tq.onclick = (e) => { e.stopPropagation(); quoteNow(S.current, '工具·' + (item.name || '调用'), toolQuoteText(item)) }
+  tq.onclick = (e) => { e.stopPropagation(); quoteNow(S.current, 'ツール・' + (item.name || '呼び出し'), toolQuoteText(item)) }
   head.appendChild(tq)
   head.append(state, chev)
   const body = el('div', 'tool-body')
@@ -733,16 +733,16 @@ function toolNode(item) {
   if (!detail) { try { detail = JSON.stringify(item.args, null, 2) } catch (e) {} }
   const TRUNC = 4000
   const truncated = detail.length > TRUNC
-  pre.textContent = detail.slice(0, TRUNC) || '(无输出)'
+  pre.textContent = detail.slice(0, TRUNC) || '（出力なし）'
   body.appendChild(pre)
-  if (truncated) body.appendChild(el('div', 'tool-trunc', '⚠ 输出超过 ' + TRUNC + ' 字符，已截断显示——点「コピー」可取完整内容'))
+  if (truncated) body.appendChild(el('div', 'tool-trunc', '⚠ 出力が' + TRUNC + '文字を超えたため表示を省略しました。「コピー」で全文を取得できます'))
   // 工具卡操作行：コピー完整输出（构建日志/检索结果直接可取，不必手动框选）
   if (detail) {
     const acts = el('div', 'tool-acts')
     const cp = el('button', 'tool-copy2')
     cp.type = 'button'
     cp.textContent = 'コピー'
-    cp.onclick = (e) => { e.stopPropagation(); copyText(detail, (ok) => toast(ok ? '已コピー完整输出（' + detail.length + '文字）' : 'コピー失败，请重试', !ok)) }
+    cp.onclick = (e) => { e.stopPropagation(); copyText(detail, (ok) => toast(ok ? '出力の全文をコピーしました（' + detail.length + '文字）' : 'コピーできませんでした。再試行してください', !ok)) }
     acts.appendChild(cp)
     body.appendChild(acts)
   }
@@ -834,12 +834,12 @@ function questionNode(s, q) {
   const ico = el('div', 'a-ico'); ico.appendChild(icon('ask', 17))
   head.appendChild(ico)
   const ht = el('div')
-  ht.appendChild(el('div', 'a-title', 'Agent 提问'))
-  ht.appendChild(el('div', 'a-sub', q.outcome ? '処理済み' : '等待你的回答'))
+  ht.appendChild(el('div', 'a-title', 'エージェントからの質問'))
+  ht.appendChild(el('div', 'a-sub', q.outcome ? '処理済み' : '回答を待っています'))
   head.appendChild(ht)
   card.appendChild(head)
   if (q.outcome) {
-    card.appendChild(el('div', 'ask-done', q.outcome === 'answered' ? '已回答 ✓' : 'キャンセル済み'))
+    card.appendChild(el('div', 'ask-done', q.outcome === 'answered' ? '回答済み ✓' : 'キャンセル済み'))
     // 保留已提交的答案摘要，方便回溯「我当时答了什么」
     if (q.outcome === 'answered' && Array.isArray(q.answerSummary)) {
       for (const line of q.answerSummary) card.appendChild(el('div', 'ask-ans', line))
@@ -879,7 +879,7 @@ function questionNode(s, q) {
     })
     const customWrap = el('div', 'ask-custom')
     const input = el('input')
-    input.placeholder = multi ? '补充说明（可选）' : '或输入自定义回答…'
+    input.placeholder = multi ? '補足説明（任意）' : 'または回答を入力…'
     input.dataset.custom = qi
     input.oninput = () => {
       if (!multi && input.value.trim()) {
@@ -967,7 +967,7 @@ function openImageViewer(src) {
   }
   ov.textContent = ''
   const im = el('img')
-  im.src = src; im.alt = '查看图片'
+  im.src = src; im.alt = '画像を表示'
   ov.appendChild(im)
   ovSet('img-viewer', true)
 }
@@ -998,7 +998,7 @@ function renderChat(s, forceScroll) {
   const anchor = stick ? null : captureAnchor(sc)
   sc.textContent = ''
   // 更早的メッセージ滚动到顶自动加载（无感），不再给用户一个按钮
-  if (s.hasMore) sc.appendChild(el('div', 'auto-load-hint', '· 上滑加载更早 ·'))
+  if (s.hasMore) sc.appendChild(el('div', 'auto-load-hint', '· 上にスクロールすると以前のメッセージを読み込みます ·'))
   let lastDay = ''
   for (const item of s.items) {
     if (item.time) {
@@ -1035,7 +1035,7 @@ const quoteDrafts = new Map()   // sessionId → [{label, text, note}]
 const quotesOf = (sid) => { if (!quoteDrafts.has(sid)) quoteDrafts.set(sid, []); return quoteDrafts.get(sid) }
 function addQuote(sid, label, text) {
   const arr = quotesOf(sid)
-  if (arr.length >= 6) { toast('最多同时引用 6 条', true); return -1 }
+  if (arr.length >= 6) { toast('一度に引用できるのは6件までです', true); return -1 }
   arr.push({ label, text: String(text || '').trim(), note: '' })
   vibrate(8)
   renderQuoteStrip()
@@ -1053,7 +1053,7 @@ function toolQuoteText(item) {
   if (item.name === 'bash' && item.args && item.args.command) t += '$ ' + item.args.command + '\n'
   if (item.result) t += (t ? '\n' : '') + item.result
   if (!t) { try { t = JSON.stringify(item.args, null, 2) } catch (e) { t = '' } }
-  return t.length > 1500 ? t.slice(0, 1500) + '\n…（已截断）' : t
+  return t.length > 1500 ? t.slice(0, 1500) + '\n…（省略しました）' : t
 }
 /* 送信编排：引用块 > [来源] + 【注】 + 正文 —— 协议只有 text，引用必须拼进文本（モデル实际所见） */
 function composeQuoted(quotes, body) {
@@ -1093,6 +1093,11 @@ function parseQuotedMessage(text) {
   const body = lines.slice(i).join('\n').replace(/^\n+/, '')
   return { quotes, body }
 }
+// Preserve stored quote labels; localize only the labels presented by this UI.
+function displayQuoteLabel(label) {
+  const legacy = { '用户': 'ユーザー', '助手': 'アシスタント', '系统': 'システム' }
+  return legacy[label] || (typeof label === 'string' && label.startsWith('工具·') ? 'ツール・' + label.slice(3) : label)
+}
 /* 引用 chips 条（输入框上方） */
 function renderQuoteStrip() {
   const strip = $('#quote-strip')
@@ -1103,14 +1108,15 @@ function renderQuoteStrip() {
   arr.forEach((q, i) => {
     const chip = el('button', 'qt-chip')
     chip.type = 'button'
-    chip.setAttribute('aria-label', '引用 ' + q.label + '：点按加注解')
-    const ico = el('span', 'qi', q.label === '用户' ? '你' : q.label === '助手' ? 'AI' : q.label === '系统' ? 'Sys' : '⌘')
-    const tx = el('span', 'qx', q.label + ' · ' + q.text.split('\n')[0])
+    const label = displayQuoteLabel(q.label)
+    chip.setAttribute('aria-label', '引用 ' + label + '：タップして注記を追加')
+    const ico = el('span', 'qi', label === 'ユーザー' ? '自分' : label === 'アシスタント' ? 'AI' : label === 'システム' ? 'システム' : '⌘')
+    const tx = el('span', 'qx', label + ' · ' + q.text.split('\n')[0])
     chip.append(ico, tx)
     if (q.note && q.note.trim()) chip.appendChild(el('span', 'nd'))
     const rm = el('button', 'rm', '✕')
     rm.type = 'button'
-    rm.setAttribute('aria-label', '移除这条引用')
+    rm.setAttribute('aria-label', 'この引用を削除')
     rm.onclick = (e) => { e.stopPropagation(); arr.splice(i, 1); renderQuoteStrip() }
     chip.appendChild(rm)
     chip.onclick = () => { vibrate(8); openQuoteSheet(S.current, i) }
@@ -1124,7 +1130,7 @@ function openQuoteSheet(sid, i) {
   const q = arr[i]
   if (!q) return
   quoteEdit = { sid, i }
-  $('#quote-title').textContent = '引用 · ' + q.label
+  $('#quote-title').textContent = '引用 · ' + displayQuoteLabel(q.label)
   const full = $('#quote-full')
   full.textContent = q.text
   const note = $('#quote-note')
@@ -1166,7 +1172,7 @@ function itemNodeInner(s, item) {
       if (parsed) {
         // 引用メッセージ：引用块（含来源）+【注】+ 正文分层显示，原文仍是纯文本（协议兼容）
         for (const q of parsed.quotes) {
-          b.appendChild(el('div', 'qblk', '[' + q.label + '] ' + q.text))
+          b.appendChild(el('div', 'qblk', '[' + displayQuoteLabel(q.label) + '] ' + q.text))
           if (q.note) b.appendChild(el('div', 'qnote', '【注】' + q.note))
         }
         if (parsed.body) b.appendChild(el('div', 'qbody', parsed.body))
@@ -1175,7 +1181,7 @@ function itemNodeInner(s, item) {
         if (img.previewUrl) {
           const im = el('img', 'msg-img')
           im.src = im.previewUrl
-          im.alt = img.name || '图片'
+          im.alt = img.name || '画像'
           if (img.width && img.height) im.style.aspectRatio = img.width + ' / ' + img.height  // 解码前即占位，杜绝撑开顶人
           b.appendChild(im)
         }
@@ -1185,18 +1191,18 @@ function itemNodeInner(s, item) {
       // meta 行：时间 · コピー（右对齐）；失败态在此重试
       const meta = el('div', 'meta-row')
       meta.appendChild(el('span', 'meta-time', fmtTime(item.time)))
-      if (item.pending) meta.appendChild(el('span', 'meta-pending', item.steering ? '插话中…' : '送信中…'))
-      if (item.steering && !item.pending) meta.appendChild(el('span', 'meta-steer', '⚡ 插话'))
+      if (item.pending) meta.appendChild(el('span', 'meta-pending', item.steering ? '割り込みを送信中…' : '送信中…'))
+      if (item.steering && !item.pending) meta.appendChild(el('span', 'meta-steer', '⚡ 割り込み'))
       if (item.text) {
-        const cp = metaIcon('copy', 'コピー这条メッセージ')
-        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已コピー ✓' : 'コピー失败，请重试', !ok)) }
+        const cp = metaIcon('copy', 'このメッセージをコピー')
+        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? 'コピーしました ✓' : 'コピーできませんでした。再試行してください', !ok)) }
         meta.appendChild(cp)
       }
-      const uq = metaIcon('quote', '引用这条')
-      uq.onclick = () => quoteNow(s.id, '用户', item.text || '[图片]')
+      const uq = metaIcon('quote', 'このメッセージを引用')
+      uq.onclick = () => quoteNow(s.id, 'ユーザー', item.text || '[画像]')
       meta.appendChild(uq)
       if (item.failed) {
-        const r = el('span', 'retry-send', '送信失败 · タップして再試行')
+        const r = el('span', 'retry-send', '送信できませんでした · タップして再試行')
         meta.appendChild(r)
         meta.onclick = () => retrySend(s, item)
       }
@@ -1213,16 +1219,16 @@ function itemNodeInner(s, item) {
       const meta = el('div', 'meta-row')
       if (item.time) meta.appendChild(el('span', 'meta-time', fmtTime(item.time)))
       if (item.text) {
-        const cp = metaIcon('copy', 'コピー这条メッセージ')
-        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已コピー ✓' : 'コピー失败，请重试', !ok)) }
+        const cp = metaIcon('copy', 'このメッセージをコピー')
+        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? 'コピーしました ✓' : 'コピーできませんでした。再試行してください', !ok)) }
         meta.appendChild(cp)
-        const sp = metaIcon('speaker', '朗读这条回答')
+        const sp = metaIcon('speaker', 'この回答を読み上げ')
         sp.classList.add('tts-ico')
         sp.onclick = () => { vibrate(8); ttsToggle(s, item) }
         meta.appendChild(sp)
       }
-      const aq = metaIcon('quote', '引用这条回答')
-      aq.onclick = () => quoteNow(s.id, '助手', item.text)
+      const aq = metaIcon('quote', 'この回答を引用')
+      aq.onclick = () => quoteNow(s.id, 'アシスタント', item.text)
       meta.appendChild(aq)
       if (item.reasoning && item.reasoning.trim()) meta.appendChild(thinkDot(() => openThink({ text: item.reasoning, live: false })))
       // 轮级统计 pill（P1 方案）：只挂在轮的最后一条助手メッセージ上（turnStats 由 turn/end 计算）；
@@ -1236,7 +1242,7 @@ function itemNodeInner(s, item) {
       }
       // 会話を分岐（移植桌面端「轮尾 branch」语义）：只在已完成的轮次上开放；子代理会話不开放
       if (item.seq != null && !s.subagent && turnComplete(s, item)) {
-        const fk = metaIcon('fork', '从这里会話を分岐：コピー「到这条回答为止」的历史成新しい会話')
+        const fk = metaIcon('fork', 'この回答までの履歴をコピーして新しい会話に分岐')
         fk.onclick = (e) => { e.stopPropagation(); vibrate(8); showForkConfirm(fk, s, item) }
         meta.appendChild(fk)
       }
@@ -1246,7 +1252,7 @@ function itemNodeInner(s, item) {
     case 'tool': return toolNode(item)
     case 'gap': {
       // seek 跳转留下的未加载段：滚动靠近会自动补齐（fillGap），行本身只是个轻占位
-      const g = el('div', 'gap-row', '· 这一段还没加载 ·')
+      const g = el('div', 'gap-row', '· この部分はまだ読み込まれていません ·')
       g.dataset.gap = '1'
       return g
     }
@@ -1275,9 +1281,9 @@ function itemNodeInner(s, item) {
       d.appendChild(el('span', null, item.text))
       const sq = el('button', 'meta-ico sys-q')
       sq.type = 'button'
-      sq.setAttribute('aria-label', '引用这条系统メッセージ')
+      sq.setAttribute('aria-label', 'このシステムメッセージを引用')
       sq.innerHTML = ICONS.quote
-      sq.onclick = () => quoteNow(S.current, '系统', item.text)
+      sq.onclick = () => quoteNow(S.current, 'システム', item.text)
       d.appendChild(sq)
       return d
     }
@@ -1335,7 +1341,7 @@ function takeThinkBuf(s) {
 function thinkDot(onTap, live) {
   const d = el('button', 'meta-ico think' + (live ? ' live' : ''))
   d.type = 'button'
-  d.setAttribute('aria-label', live ? '查看正在进行的思考' : '查看思考内容')
+  d.setAttribute('aria-label', live ? '現在の思考内容を表示' : '思考内容を表示')
   d.innerHTML = ICONS.think
   d.onclick = (e) => { e.stopPropagation(); vibrate(8); onTap() }
   return d
@@ -1387,7 +1393,7 @@ function settleThinkDrawer(s) {
 function statusBadge(s) {
   for (const a of s.approvals.values()) if (!a.outcome) return ['approval', '承認待ち']
   for (const q of s.questions.values()) if (!q.outcome) return ['question', '回答待ち']
-  if (s.running) return ['running', '运行中']
+  if (s.running) return ['running', '実行中']
   return ['done', '待機中']
 }
 /* 会話 → 作業フォルダー归属：严格跟随宿主注册表（workspace/follow 的 sessionIds）。
@@ -1413,12 +1419,12 @@ function renderList() {
   if (S.todoMode) {
     visible = visible.filter(hasPending)
     if (!visible.length) {
-      wrap.appendChild(el('div', 'empty-state', '没有待处理的事项 ✓'))
+      wrap.appendChild(el('div', 'empty-state', '対応が必要な項目はありません ✓'))
       return
     }
     const g = el('div', 'ws-group')
     g.appendChild(icon('bolt', 14))
-    g.appendChild(el('span', null, '待处理（' + visible.length + '）'))
+    g.appendChild(el('span', null, '対応が必要（' + visible.length + '）'))
     wrap.appendChild(g)
     for (const s of visible) wrap.appendChild(sessionCard(s))
     return
@@ -1428,9 +1434,9 @@ function renderList() {
     // 冷启动列表未落地时也不给结论，给加载态
     if (q) {
       const box = el('div', 'empty-state')
-      box.appendChild(el('div', null, '没有标题或路径含「' + q + '」的会話'))
-      box.appendChild(el('div', 'empty-sub', '搜索范围：标题与作業フォルダー路径，暂不覆盖メッセージ内容'))
-      const clear = el('button', 'empty-clear', '清除搜索')
+      box.appendChild(el('div', null, 'タイトルやパスに「' + q + '」を含む会話はありません'))
+      box.appendChild(el('div', 'empty-sub', 'タイトルと作業フォルダーのパスを検索します。メッセージ本文は検索対象外です'))
+      const clear = el('button', 'empty-clear', '検索をクリア')
       clear.type = 'button'
       clear.onclick = () => { const inp = $('#search'); if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })) } vibrate(8) }
       box.appendChild(clear)
@@ -1438,10 +1444,10 @@ function renderList() {
       return
     }
     if (!S.listLoaded) {
-      wrap.appendChild(el('div', 'empty-state', '正在加载会話…'))
+      wrap.appendChild(el('div', 'empty-state', '会話を読み込んでいます…'))
       return
     }
-    wrap.appendChild(el('div', 'empty-state', '还没有会話\n点右下角 ＋ 新建'))
+    wrap.appendChild(el('div', 'empty-state', '会話はまだありません\n右下の＋から作成できます'))
     return
   }
   // 「继续上次会話」置顶入口已移除：两级作業フォルダー视图 + 「最近の会話」时间视图都能一步直达最近对话
@@ -1468,7 +1474,7 @@ function renderList() {
   const wsSorted = S.workspaces
     .map((ws) => ({ id: ws.workspaceId, name: ws.title || ws.path, iconName: 'folder', list: byWs.get(ws.workspaceId) }))
     .filter((x) => x.list && x.list.length)
-  if (ungrouped.length) wsSorted.push({ id: '__other__', name: '未分类', iconName: 'chat', list: ungrouped })
+  if (ungrouped.length) wsSorted.push({ id: '__other__', name: '未分類', iconName: 'chat', list: ungrouped })
   // 作業フォルダー本身按「组内最近の会話」排序（visible 已按 updatedAt 降序，每组第一条即最新）
   wsSorted.sort((a, b) => b.list[0].updatedAt - a.list[0].updatedAt)
   // 下钻态：作業フォルダー没了（会話全部アーカイブ等）就退回列表
@@ -1478,7 +1484,7 @@ function renderList() {
     const back = el('div', 'ws-back')
     back.setAttribute('role', 'button'); back.setAttribute('tabindex', '0')
     back.appendChild(el('span', 'wb-arrow', '‹'))
-    back.appendChild(el('span', null, '全部作業フォルダー'))
+    back.appendChild(el('span', null, 'すべての作業フォルダー'))
     const backFn = () => { vibrate(8); S.wsDrill = null; renderList(); listScrollTop() }
     back.onclick = backFn
     back.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); backFn() } }
@@ -1495,7 +1501,7 @@ function wsRow(entry) {
   const row = el('div', 'ws-row')
   row.setAttribute('role', 'button')
   row.setAttribute('tabindex', '0')
-  row.setAttribute('aria-label', entry.name + '，' + entry.list.length + ' 个会話')
+  row.setAttribute('aria-label', entry.name + '，' + entry.list.length + '件の会話')
   const ico = el('div', 'wsr-ico')
   ico.appendChild(icon(entry.iconName, 18))
   const mid = el('div'); mid.style.minWidth = '0'; mid.style.flex = '1'
@@ -1503,7 +1509,7 @@ function wsRow(entry) {
   mid.appendChild(el('div', 'wsr-sub', sessTitle(entry.list[0])))
   const side = el('div', 'wsr-side')
   side.appendChild(el('div', 'wsr-time', fmtTime(entry.list[0].updatedAt)))
-  side.appendChild(el('div', 'wsr-n', entry.list.length + ' 会話'))
+  side.appendChild(el('div', 'wsr-n', entry.list.length + '件の会話'))
   const chev = el('span', 'wsr-chev', '›')
   row.append(ico, mid, side, chev)
   const open = () => { vibrate(8); S.wsDrill = entry.id; renderList(); listScrollTop() }
@@ -1567,18 +1573,18 @@ function sessionCard(s, showWs) {
     actions.appendChild(btn)
     return btn
   }
-  mkAct('pencil', '改名', 'var(--accent)', () => openSessionMenu(s.id, 0, 0, true))
+  mkAct('pencil', '名前を変更', 'var(--accent)', () => openSessionMenu(s.id, 0, 0, true))
   mkAct('fork', '会話を分岐', 'var(--purple)', async () => {
     vibrate(8)
-    try { toast('正在会話を分岐…'); const v = await rpc('session/fork', { request: { sessionId: s.id } }); toast('已会話を分岐 ✓'); location.hash = '#/s/' + v.sessionId; flushForkTail(v.sessionId) } catch (e) { toast('会話を分岐失败：' + e.message, true) }
+    try { toast('会話を分岐しています…'); const v = await rpc('session/fork', { request: { sessionId: s.id } }); toast('会話を分岐しました ✓'); location.hash = '#/s/' + v.sessionId; flushForkTail(v.sessionId) } catch (e) { toast('会話を分岐できませんでした：' + e.message, true) }
   })
   if (s.running) mkAct('stop', '停止', 'var(--red)', async () => {
     vibrate(8)
-    try { await rpc('session/cancel', { request: { sessionId: s.id } }); s.running = false; renderList(); toast('已送信停止 ■') } catch (e) { toast(e.message, true) }
+    try { await rpc('session/cancel', { request: { sessionId: s.id } }); s.running = false; renderList(); toast('停止を送信しました ■') } catch (e) { toast(e.message, true) }
   })
   mkAct('archive', 'アーカイブ', 'var(--text-3)', async () => {
     vibrate(8)
-    try { const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } }); if (av && Array.isArray(av.archivedSessionIds)) S.archived = new Set(av.archivedSessionIds); S.sessions.delete(s.id); renderList(); toast('已アーカイブ（桌面端可恢复）') } catch (e) { toast('アーカイブ失败：' + e.message, true) }
+    try { const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } }); if (av && Array.isArray(av.archivedSessionIds)) S.archived = new Set(av.archivedSessionIds); S.sessions.delete(s.id); renderList(); toast('アーカイブしました（PC画面で復元できます）') } catch (e) { toast('アーカイブできませんでした：' + e.message, true) }
   })
   wrap.append(actions, card)
   initSwipe(wrap, card, actions)
@@ -1675,7 +1681,7 @@ function openSessionMenu(sid, x, y, expandRename) {
   if (expandRename) setTimeout(expandRenameBox, 120)  // 左滑「改名」直达编辑
   wire('#sess-rename-save', async () => {
     const t = editableText($('#sess-rename-box')).replace(/\n+/g, ' ')
-    if (!t) { toast('标题不能为空', true); return }
+    if (!t) { toast('タイトルを入力してください', true); return }
     vibrate(8)
     try {
       await rpc('session/rename', { request: { sessionId: sid, title: t } })
@@ -1683,19 +1689,19 @@ function openSessionMenu(sid, x, y, expandRename) {
       s._titleAt = Date.now()   // 改名后短窗内本地胜出：在途的旧 title 投影/列表响应不得把它改回去（保存无效 bug）
       closeSessionMenu()
       renderList()
-      toast('已名前を変更 ✓')
-    } catch (e) { toast('名前を変更失败：' + e.message, true) }
+      toast('名前を変更しました ✓')
+    } catch (e) { toast('名前を変更できませんでした：' + e.message, true) }
   })
   wire('#sess-a-fork', async () => {
     vibrate(8)
     try {
       closeSessionMenu()
-      toast('正在会話を分岐…')
+      toast('会話を分岐しています…')
       const v = await rpc('session/fork', { request: { sessionId: sid } })
-      toast('已会話を分岐 ✓ 正在打开')
+      toast('会話を分岐しました ✓ 開いています')
       location.hash = '#/s/' + v.sessionId
       flushForkTail(v.sessionId)
-    } catch (e) { toast('会話を分岐失败：' + e.message, true) }
+    } catch (e) { toast('会話を分岐できませんでした：' + e.message, true) }
   })
   wire('#sess-a-archive', async () => {
     vibrate(8)
@@ -1705,8 +1711,8 @@ function openSessionMenu(sid, x, y, expandRename) {
       S.sessions.delete(sid)
       closeSessionMenu()
       renderList()
-      toast('已アーカイブ（可在桌面端恢复）')
-    } catch (e) { toast('アーカイブ失败：' + e.message, true) }
+      toast('アーカイブしました（PC画面で復元できます）')
+    } catch (e) { toast('アーカイブできませんでした：' + e.message, true) }
   })
   wire('#sess-a-stop', async () => {
     vibrate(8)
@@ -1715,7 +1721,7 @@ function openSessionMenu(sid, x, y, expandRename) {
       s.running = false
       closeSessionMenu()
       renderList()
-      toast('已送信停止 ■')
+      toast('停止を送信しました ■')
     } catch (e) { toast(e.message, true) }
   })
   ovSet('sess-ov', true); sheet.classList.add('open')
@@ -1733,7 +1739,7 @@ function refreshBadges() {
     chip.style.display = ''
     chip.innerHTML = ''
     chip.appendChild(icon('bolt', 13))
-    chip.appendChild(el('span', null, S.todoMode ? '看全部' : '待办'))
+    chip.appendChild(el('span', null, S.todoMode ? 'すべて表示' : '未対応'))
     const nb = el('span', 'n', String(n))
     chip.appendChild(nb)
     chip.classList.toggle('act', S.todoMode)
@@ -1816,7 +1822,7 @@ function renderTaskBar(s) {
     else ic.appendChild(icon('todo', 13))
   }
   const curEl = $('#tb-cur')
-  if (curEl) curEl.textContent = allDone ? total + ' 项全部完成' : (cur ? cur.content : '')
+  if (curEl) curEl.textContent = allDone ? total + '件すべて完了' : (cur ? cur.content : '')
   const cnt = $('#tb-cnt')
   if (cnt) cnt.textContent = allDone ? '✓' : done + '/' + total
   const fill = $('#tb-fill')
@@ -1852,7 +1858,7 @@ function renderTaskSheet(s) {
   if (!body) return
   const { list, total, done, allDone } = todoStats(s)
   const cnt = $('#task-count')
-  if (cnt) cnt.textContent = allDone ? total + ' 项全部完成' : done + '/' + total
+  if (cnt) cnt.textContent = allDone ? total + '件すべて完了' : done + '/' + total
   // 进行中置顶，其余保持原顺序
   const order = list.map((t, i) => ({ t, i })).sort((a, b) => (a.t.status === 'in_progress' ? -1 : b.t.status === 'in_progress' ? 1 : a.i - b.i))
   body.textContent = ''
@@ -1864,7 +1870,7 @@ function renderTaskSheet(s) {
     else ico.textContent = '○'
     row.appendChild(ico)
     row.appendChild(el('span', 'tk-txt', t.content))
-    if (t.status === 'in_progress') row.appendChild(el('span', 'tk-tag', '进行中'))
+    if (t.status === 'in_progress') row.appendChild(el('span', 'tk-tag', '進行中'))
     else if (t.status === 'completed') row.appendChild(el('span', 'tk-tag ok', '完成'))
     body.appendChild(row)
   }
@@ -1960,7 +1966,7 @@ async function loadBase() {
     renderList()
   } catch (e) {
     setConn('offline')
-    toast('连接失败：' + e.message, true)
+    toast('接続できませんでした：' + e.message, true)
   }
 }
 /* 历史加载：打开（或重开）follow 流，等首帧 snapshot 折叠完成 */
@@ -1968,12 +1974,12 @@ async function loadHistory(s) {
   // 子代理会話且父地址未知：先刷一次列表拿 parentSessionId，否则 follow 必报 agent-busy
   if (s.subagent && !s.parentSessionId) await loadBase().catch(() => {})
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { s._resolveLoad = null; s._rejectLoad = null; reject(new Error('加载超时')) }, 12000)
+    const timer = setTimeout(() => { s._resolveLoad = null; s._rejectLoad = null; reject(new Error('読み込みがタイムアウトしました')) }, 12000)
     s._resolveLoad = () => { clearTimeout(timer); seenMark(s.id, Math.max(s.asOfSeq || 0, ...(s.items || []).map((x) => x.seq || 0))); resolve() }   // 折叠完成＝这之前的都看过了
     s._rejectLoad = (err) => { clearTimeout(timer); s._resolveLoad = null; reject(err) }
     if (!Mux.setFollow(s.id, true)) {
       clearTimeout(timer); s._resolveLoad = null; s._rejectLoad = null
-      reject(new Error('连接不可用，请稍后重试'))
+      reject(new Error('接続できません。少し待ってから再試行してください'))
     }
   })
 }
@@ -2247,11 +2253,11 @@ const Mux = {
       } else if (m.type === 'error') {
         this.streams.delete(m.streamId)
         if (meta.kind === 'follow' && meta.sessionId) {
-          const msg = (m.error && m.error.message) || '会話流错误'
+          const msg = (m.error && m.error.message) || '会話の受信エラー'
           const fs2 = sess(meta.sessionId)
           // follow 流被宿主拒否（如地址错误）：立刻结束「加载中」并给出可见的可重试错误态
           if (fs2._rejectLoad) fs2._rejectLoad(new Error(msg))
-          if (S.current === meta.sessionId) toast('会話流错误：' + msg, true)
+          if (S.current === meta.sessionId) toast('会話の受信中にエラーが発生しました：' + msg, true)
         }
       } else if (m.type === 'end') {
         this.streams.delete(m.streamId)
@@ -2412,7 +2418,7 @@ Mux.handlers.events = (v) => {
         renderList()
         if (wasCurrent) {
           // 正在看的会話被（其它端）删除：提示并退回列表，避免留下僵尸聊天页
-          toast('该会話已被删除', true)
+          toast('この会話は削除されています', true)
           location.hash = '#/'
         }
         break
@@ -2448,10 +2454,10 @@ Mux.handlers.events = (v) => {
     if (v.event === 'approval/request') {
       const req = v.request || {}
       const s = sess(v.agentId)
-      s.approvals.set(v.eventId, { eventId: v.eventId, approvalId: v.eventId, rpcId: v.eventId, toolName: req.toolName || '工具', callId: req.callId, reason: req.reason, outcome: null })
+      s.approvals.set(v.eventId, { eventId: v.eventId, approvalId: v.eventId, rpcId: v.eventId, toolName: req.toolName || 'ツール', callId: req.callId, reason: req.reason, outcome: null })
       vibrate([80, 60, 80])
       // 已经在该会話里：卡片就在眼前，toast 不带跳转（也不再压住卡片按钮）
-      toast('⚠️ ' + (req.toolName || '工具') + ' 承認待ち' + (S.current === s.id ? '' : ' — 点按查看'), S.current === s.id ? undefined : { sessionId: s.id })
+      toast('⚠️ ' + (req.toolName || 'ツール') + ' 承認待ち' + (S.current === s.id ? '' : ' — タップして表示'), S.current === s.id ? undefined : { sessionId: s.id })
       if (S.current === s.id) renderChat(s, true)
       refreshBadges(); renderList()
     } else if (v.event === 'user-questions/request') {
@@ -2459,7 +2465,7 @@ Mux.handlers.events = (v) => {
       const s = sess(v.agentId)
       s.questions.set(v.eventId, { rpcId: v.eventId, questions: req.questions || [], outcome: null })
       vibrate([80, 60, 80])
-      toast('🤔 Agent 有一个问题' + (S.current === s.id ? '' : ' — 点按查看'), S.current === s.id ? undefined : { sessionId: s.id })
+      toast('🤔 エージェントから質問があります' + (S.current === s.id ? '' : ' — タップして表示'), S.current === s.id ? undefined : { sessionId: s.id })
       if (S.current === s.id) renderChat(s, true)
       refreshBadges(); renderList()
     }
@@ -2599,9 +2605,9 @@ async function openSession(id, force) {
     sc.appendChild(skeletonNode())
     try { await loadHistory(s) } catch (e) {
       sc.textContent = ''
-      const d = el('div', 'empty-state', '加载失败：' + e.message)
+      const d = el('div', 'empty-state', '読み込めませんでした：' + e.message)
       d.appendChild(document.createElement('br'))
-      const retry = el('button', 'retry', '重试')
+      const retry = el('button', 'retry', '再試行')
       retry.onclick = () => openSession(id, true)
       d.appendChild(retry)
       sc.appendChild(d)
@@ -2627,7 +2633,7 @@ function refreshChatChrome(s) {
   const off = S.connState !== 'online'
   const input = $('#chat-input')
   if (input) {
-    input.dataset.ph = off ? '连接已断开…' : s.running ? '追加指令（steer）…' : 'メッセージを入力…'
+    input.dataset.ph = off ? '接続が切れています…' : s.running ? '追加の指示（割り込み）…' : 'メッセージを入力…'
     input.classList.toggle('off', off)
   }
   const send = $('#send-btn')
@@ -2637,16 +2643,16 @@ function refreshChatChrome(s) {
   if (sub) {
     sub.classList.toggle('off', off)
     sub.classList.toggle('running', !off && !!s.running)
-    if (off) sub.textContent = '连接已断开，重连中…'
+    if (off) sub.textContent = '接続が切れました。再接続しています…'
     else if (s.running) {
       // 正在工作中 · 已运行时长 · 停止钮（停止与时间是一组概念，放一起）
       sub.textContent = ''
       sub.appendChild(el('span', 'run-dot'))
-      sub.appendChild(el('span', null, '正在工作中'))
+      sub.appendChild(el('span', null, '作業中'))
       sub.appendChild(el('span', 'run-dur', ''))
       const stop = el('button', 'sub-stop')
       stop.type = 'button'
-      stop.setAttribute('aria-label', '停止当前任务')
+      stop.setAttribute('aria-label', '現在のタスクを停止')
       stop.appendChild(icon('stop', 10))
       stop.onclick = () => { vibrate(8); if (S.current) cancelSession(S.current) }
       sub.appendChild(stop)
@@ -2663,7 +2669,7 @@ function refreshChatChrome(s) {
   // 输入框 placeholder 明示送信模式（运行中按设置待ち行列/插话；长按送信反向）
   const input2 = $('#chat-input')
   if (input2 && !off) {
-    input2.dataset.ph = s.running ? (busyEnter() === 'steer' ? '插话送信…（长按待ち行列）' : '将待ち行列送信…（长按插话）') : 'メッセージを入力…'
+    input2.dataset.ph = s.running ? (busyEnter() === 'steer' ? '割り込みを送信…（長押しで待ち行列へ）' : '待ち行列へ送信…（長押しで割り込み）') : 'メッセージを入力…'
   }
 }
 /* ---- 上下文压力条（标题栏底边 2px） ---- */
@@ -2707,7 +2713,7 @@ function updateCtxBar(s) {
 /* ---- 统计格式化 ---- */
 function fmtTok(n) {
   if (n == null) return '—'
-  if (n >= 1e8) return (n / 1e8).toFixed(2).replace(/\.?0+$/, '') + '亿'
+  if (n >= 1e8) return (n / 1e8).toFixed(2).replace(/\.?0+$/, '') + '億'
   if (n >= 1e4) return (n / 1e4).toFixed(n >= 1e6 ? 0 : 1).replace(/\.0$/, '') + '万'
   return String(n)
 }
@@ -2723,14 +2729,14 @@ function fmtDur(ms) {
   if (s < 60) return (Math.round(s * 10) / 10) + ' 秒'   // 桌面 formatDuration 同款：不足 1 分钟给秒，不再显示成「0 分钟」
   const whole = Math.round(s)
   if (whole < 3600) return Math.floor(whole / 60) + ' 分 ' + (whole % 60) + ' 秒'
-  return (whole / 3600).toFixed(1) + ' 小时'
+  return (whole / 3600).toFixed(1) + ' 時間'
 }
 /* pill 里的轮时长：长轮别写成「1560.3s」 */
 function fmtTurnDur(ms) {
   const s = ms / 1000
   if (s < 60) return s.toFixed(1) + 's'
   if (s < 3600) return (s / 60).toFixed(1) + '分'
-  return (s / 3600).toFixed(1) + '小时'
+  return (s / 3600).toFixed(1) + '時間'
 }
 function turnSpeed(timing) {
   return timing && timing.hasDecode && timing.decodeMs > 0 ? timing.decodeTokens / (timing.decodeMs / 1000) : null
@@ -2806,7 +2812,7 @@ function fillStatPill(pill, ts) {
   pill.textContent = ''
   pill.appendChild(el('span', 'z', '⚡'))
   pill.appendChild(document.createTextNode(dur + (spd ? ' · ' + spd : '') + ' · ' + tok))
-  pill.setAttribute('aria-label', '第 ' + ts.turn + ' 轮' + (ts.live ? '（进行中）' : '') + '统计：' + dur + (spd ? ' · ' + spd : '') + ' · ' + tok)
+  pill.setAttribute('aria-label', '第 ' + ts.turn + '回目' + (ts.live ? '（進行中）' : '') + '統計：' + dur + (spd ? ' · ' + spd : '') + ' · ' + tok)
 }
 function syncLivePill(s) {
   const sc = chatScrollEl()
@@ -2846,11 +2852,11 @@ function renderStaleStrip() {
   strip.style.display = ''
   strip.textContent = ''
   strip.appendChild(el('span', 'st-ico', '⚠'))
-  const tx = el('span', 'st-tx', n + ' 项审批/提问在断线期间失效，本次无法在手机上作答')
+  const tx = el('span', 'st-tx', n + '件の承認・質問が切断中に期限切れとなり、この画面からは回答できません')
   strip.appendChild(tx)
-  const x = el('button', 'st-x', '知道了')
+  const x = el('button', 'st-x', '確認しました')
   x.type = 'button'
-  x.setAttribute('aria-label', '閉じる提示')
+  x.setAttribute('aria-label', '通知を閉じる')
   x.onclick = () => { S.staleNotice = null; renderStaleStrip(); vibrate(8) }
   strip.appendChild(x)
 }
@@ -2858,9 +2864,9 @@ function renderStaleStrip() {
  * 投影带全套状态（objective/phase/rounds）；控制走宿主 goals/* RPC（CAS ref={id,revision}）。 */
 function goalPhaseInfo(g) {
   const ph = g && g.goal && g.goal.phase
-  if (ph === 'active') return { cls: 'on', label: '进行中' }
-  if (ph === 'paused') return { cls: 'paused', label: '已暂停' }
-  if (ph === 'blocked') return { cls: 'blocked', label: '被卡住' }
+  if (ph === 'active') return { cls: 'on', label: '進行中' }
+  if (ph === 'paused') return { cls: 'paused', label: '一時停止中' }
+  if (ph === 'blocked') return { cls: 'blocked', label: '保留中' }
   return null   // complete / 无目標：不显示
 }
 function renderGoalBanner(s) {
@@ -2871,7 +2877,7 @@ function renderGoalBanner(s) {
   if (!info) { bar.style.display = 'none'; return }
   bar.style.display = 'flex'   // 样式表里 .goal-bar 是 display:none（默认隐藏），这里必须显式 flex——写 '' 会被样式表压回隐藏
   bar.className = 'goal-bar ' + info.cls
-  const rounds = g.roundsStarted != null ? ' · 第 ' + (g.roundsStarted + 1) + ' 轮' : ''
+  const rounds = g.roundsStarted != null ? ' · 第 ' + (g.roundsStarted + 1) + '回目' : ''
   bar.textContent = ''
   const ic = el('span', 'gb-ic', '🎯')
   const mid = el('span', 'gb-mid', '目標' + rounds + ' · ' + info.label)
@@ -2881,7 +2887,7 @@ function renderGoalBanner(s) {
 }
 async function goalRpc(s, method, extra) {
   const g = s.goal && s.goal.goal
-  if (!g) { toast('没有可操作的目標', true); return null }
+  if (!g) { toast('操作できる目標がありません', true); return null }
   try {
     const v = await rpc(method, { agentId: s.id, ref: { id: g.id, revision: g.revision }, ...(extra || {}) })
     // goal 变更不走 control 投影流（只有 goal/activation-changed 事件）：成功后主动回读一次，横幅立刻跟上
@@ -2889,7 +2895,7 @@ async function goalRpc(s, method, extra) {
     renderGoalBanner(s)
     return v
   } catch (e) {
-    toast('操作失败：' + e.message, true)
+    toast('操作できませんでした：' + e.message, true)
     return null
   }
 }
@@ -2912,33 +2918,33 @@ function renderGoalPanel(s, editing) {
   if (!body) return
   body.textContent = ''
   const g = s.goal
-  if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', '这个会話当前没有目標。')); return }
-  const info = goalPhaseInfo(g) || { cls: '', label: g.goal.phase === 'complete' ? '已完成' : '未知' }
+  if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', 'この会話には現在、目標がありません。')); return }
+  const info = goalPhaseInfo(g) || { cls: '', label: g.goal.phase === 'complete' ? '完了' : '不明' }
   if (editing) {
     // —— 编辑模式：目標文本就地变输入框，按钮换成 キャンセル/保存 ——
-    body.appendChild(el('div', 'sheet-note', '修改目標文本：agent 从下一轮起按新目標继续。'))
+    body.appendChild(el('div', 'sheet-note', '目標を変更すると、エージェントは次の応答から新しい目標に沿って続けます。'))
     const box = el('textarea', 'goal-edit')
     box.value = g.goal.objective || ''
     box.setAttribute('aria-label', '目標内容')
     body.appendChild(box)
     const meta = el('div', 'goal-meta')
-    meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮</span>'
+    meta.innerHTML = '<span>状態：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + '回目</span>'
     body.appendChild(meta)
     const row = el('div', 'goal-btns')
     const cancel = el('button', 'goal-btn', 'キャンセル')
     cancel.type = 'button'
     cancel.onclick = () => { vibrate(6); renderGoalPanel(s) }
-    const save = el('button', 'goal-btn primary', '保存目標')
+    const save = el('button', 'goal-btn primary', '目標を保存')
     save.type = 'button'
     save.onclick = async () => {
       const t = box.value.trim()
-      if (!t) { toast('目標不能为空', true); return }
+      if (!t) { toast('目標を入力してください', true); return }
       vibrate(8)
       save.disabled = true; cancel.disabled = true
       save.textContent = '保存中…'
       const v = await goalRpc(s, 'goals/edit', { request: { objective: t } })
-      if (v) { closeGoalPanel(); toast('目標已更新 ✓') }
-      else { save.disabled = false; cancel.disabled = false; save.textContent = '保存目標' }   // 失败：留在编辑态，内容不丢
+      if (v) { closeGoalPanel(); toast('目標を更新しました ✓') }
+      else { save.disabled = false; cancel.disabled = false; save.textContent = '目標を保存' }   // 失败：留在编辑态，内容不丢
     }
     row.append(cancel, save)
     body.appendChild(row)
@@ -2948,31 +2954,31 @@ function renderGoalPanel(s, editing) {
   // —— 查看模式 ——
   body.appendChild(el('div', 'goal-obj', g.goal.objective || ''))
   const meta = el('div', 'goal-meta')
-  meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮' + (g.goal.maxGoalRounds ? ' / 上限 ' + g.goal.maxGoalRounds : '') + '</span>'
+  meta.innerHTML = '<span>状態：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + '回目' + (g.goal.maxGoalRounds ? ' / 上限 ' + g.goal.maxGoalRounds : '') + '</span>'
   body.appendChild(meta)
-  if (g.goal.blockedReason) body.appendChild(el('div', 'goal-blocked', '⚠️ 卡住原因：' + g.goal.blockedReason.message))
+  if (g.goal.blockedReason) body.appendChild(el('div', 'goal-blocked', '⚠️ 保留の理由：' + g.goal.blockedReason.message))
   const phase = g.goal.phase
   const mkBtn = (label, fn, primary, danger) => {
     const b = el('button', 'goal-btn' + (primary ? ' primary' : '') + (danger ? ' danger' : ''), label)
     b.type = 'button'
     b.onclick = async () => {
       vibrate(8)
-      b.disabled = true; b.textContent = '处理中…'
+      b.disabled = true; b.textContent = '処理中…'
       const v = await fn()
-      if (v) { closeGoalPanel(); toast('已更新 ✓') }
+      if (v) { closeGoalPanel(); toast('更新しました ✓') }
       else renderGoalPanel(s)
     }
     return b
   }
   const row = el('div', 'goal-btns')
-  if (phase === 'active') row.appendChild(mkBtn('⏸ 暂停', () => goalRpc(s, 'goals/pause'), true))
-  if (phase === 'paused' || phase === 'blocked') row.appendChild(mkBtn('▶ 继续', () => goalRpc(s, 'goals/resume'), true))
+  if (phase === 'active') row.appendChild(mkBtn('⏸ 一時停止', () => goalRpc(s, 'goals/pause'), true))
+  if (phase === 'paused' || phase === 'blocked') row.appendChild(mkBtn('▶ 再開', () => goalRpc(s, 'goals/resume'), true))
   if (phase !== 'complete') {
-    row.appendChild(mkBtn('✏️ 编辑', () => { renderGoalPanel(s, true); return 'keep' }))
-    row.appendChild(mkBtn('🗑 删除目標', () => goalRpc(s, 'goals/clear'), false, true))
+    row.appendChild(mkBtn('✏️ 編集', () => { renderGoalPanel(s, true); return 'keep' }))
+    row.appendChild(mkBtn('🗑 目標を削除', () => goalRpc(s, 'goals/clear'), false, true))
   }
   body.appendChild(row)
-  body.appendChild(el('div', 'sheet-note', '目標由 agent 在长任务时创建：暂停后它跑完本轮即停，删除后不再自动继续。'))
+  body.appendChild(el('div', 'sheet-note', '目標は長い作業のためにエージェントが作成します。一時停止すると現在の応答を終えてから止まり、削除すると自動続行しません。'))
 }
 
 /* ================= 朗读（TTS）：Web Speech API，本地免费、即点即播 =================
@@ -2985,20 +2991,19 @@ function ttsSetAuto(v) { try { localStorage.setItem('dshm-tts-auto', v ? '1' : '
 function ttsPickVoice() {
   if (!window.speechSynthesis) return
   const vs = speechSynthesis.getVoices() || []
-  TTS.voice = vs.find((v) => /zh[-_]CN/i.test(v.lang) && /Ting|婷|Yu\b|Xiaoxiao|晓/i)
-    || vs.find((v) => /^zh/i.test(v.lang))
-    || vs.find((v) => /^en/i.test(v.lang))
+  TTS.voice = vs.find((v) => /^ja[-_]JP$/i.test(v.lang))
+    || vs.find((v) => /^ja(?:[-_]|$)/i.test(v.lang))
     || null
 }
 if (window.speechSynthesis) { ttsPickVoice(); speechSynthesis.addEventListener('voiceschanged', ttsPickVoice) }
 /* 朗读前的文本预处理：代码块跳过、markdown 转口语、链接不逐字读 */
 function ttsPrepare(t) {
   let x = String(t || '')
-  x = x.replace(/```[\s\S]*?```/g, '（代码略过。）')
+  x = x.replace(/```[\s\S]*?```/g, '（コードは省略します。）')
   x = x.replace(/`([^`]+)`/g, '$1')
-  x = x.replace(/!\[[^\]]*\]\([^)]*\)/g, '（图片）')
+  x = x.replace(/!\[[^\]]*\]\([^)]*\)/g, '（画像）')
   x = x.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-  x = x.replace(/https?:\/\/\S+/g, '（链接）')
+  x = x.replace(/https?:\/\/\S+/g, '（リンク）')
   x = x.replace(/^[#>\s\-*•·]{0,6}/gm, '')
   x = x.replace(/[*_~|`]/g, '')
   x = x.replace(/\n{2,}/g, '\n').replace(/[ \t]+/g, ' ').trim()
@@ -3022,12 +3027,12 @@ function ttsToggle(s, item) {
   ttsSpeak(s, item)
 }
 function ttsSpeak(s, item) {
-  if (!window.speechSynthesis) { toast('此环境不支持语音朗读', true); return }
+  if (!window.speechSynthesis) { toast('この環境では音声読み上げを利用できません', true); return }
   ttsStop(true)
   const pre = ttsPrepare(item.text)
-  if (!pre) { toast('这条没有可朗读的文本', true); return }
+  if (!pre) { toast('このメッセージには読み上げる文章がありません', true); return }
   TTS.chunks = ttsChunks(pre)
-  if (!TTS.chunks.length) { toast('这条没有可朗读的文本', true); return }
+  if (!TTS.chunks.length) { toast('このメッセージには読み上げる文章がありません', true); return }
   TTS.on = true; TTS.paused = false; TTS.idx = 0
   TTS.key = s.id + '#' + (item.seq != null ? item.seq : (item.text || '').slice(0, 20))
   ttsPlayIdx()
@@ -3039,7 +3044,7 @@ function ttsPlayIdx() {
   TTS.tok++
   const myTok = TTS.tok
   const u = new SpeechSynthesisUtterance(TTS.chunks[TTS.idx])
-  u.lang = 'zh-CN'
+  u.lang = 'ja-JP'
   if (TTS.voice) u.voice = TTS.voice
   u.rate = TTS.rate
   u.onend = () => { if (myTok !== TTS.tok) return; TTS.idx++; ttsPlayIdx() }
@@ -3076,16 +3081,16 @@ function ttsBar() {
   bar.textContent = ''
   const pp = el('button', 'tts-pp', TTS.paused ? '▶' : '⏸')
   pp.type = 'button'
-  pp.setAttribute('aria-label', TTS.paused ? '继续' : '暂停')
+  pp.setAttribute('aria-label', TTS.paused ? '再開' : '一時停止')
   pp.onclick = () => { vibrate(6); ttsPauseResume() }
-  const info = el('div', 'tts-info', (TTS.paused ? '已暂停' : '正在播报') + ' · ')
-  info.appendChild(el('b', null, (TTS.idx + 1) + '/' + TTS.chunks.length + ' 段'))
+  const info = el('div', 'tts-info', (TTS.paused ? '一時停止中' : '読み上げ中') + ' · ')
+  info.appendChild(el('b', null, (TTS.idx + 1) + '/' + TTS.chunks.length + '区間'))
   const rt = el('button', 'tts-rate', (TTS.rate % 1 ? String(TTS.rate).replace(/0$/, '') : String(TTS.rate)) + '×')
   rt.type = 'button'
   rt.onclick = ttsCycleRate
   const x = el('button', 'tts-x', '✕')
   x.type = 'button'
-  x.setAttribute('aria-label', '停止朗读')
+  x.setAttribute('aria-label', '読み上げを停止')
   x.onclick = () => { vibrate(6); ttsStop() }
   bar.append(pp, info, rt, x)
 }
@@ -3119,12 +3124,12 @@ function renderQueueStrip(s) {
     const nImg = content.filter((b) => b && b.type === 'image').length
     // 无文本且有图片也要有代表（修复：纯图片的待ち行列メッセージ此前对话流和 chip 两头都不显示，
     // 直到本轮结束才「凭空出现」，用户会以为截图没发出去）
-    const label = text.trim() ? text : (nImg ? '图片 × ' + nImg : '')
+    const label = text.trim() ? text : (nImg ? '画像 × ' + nImg : '')
     if (!label) continue
     const chip = el('button', 'q-chip' + (q.placement === 'steering' ? ' steer' : ''))
     chip.type = 'button'
     const dot = el('span', 'q-dot')
-    const tag = el('span', 'q-tag', q.placement === 'steering' ? '插话' : '待ち行列 #' + qi)
+    const tag = el('span', 'q-tag', q.placement === 'steering' ? '割り込み' : '待ち行列 #' + qi)
     const tx = el('span', 'q-text', label)
     chip.append(dot, tag, tx)
     onTap(chip, () => openQSheet(s, q))  // 待ち行列 chip 也在输入区：同樣走 touchend 派发
@@ -3160,13 +3165,13 @@ function openQSheet(s, q) {
   }
   $('#q-save').onclick = async () => {
     const newText = editableText(box)
-    if (!newText) { toast('内容不能为空', true); return }
+    if (!newText) { toast('内容を入力してください', true); return }
     vibrate(8)
     try {
       await rpc('session/updateQueue', { request: { sessionId: sid, itemId, action: { kind: 'edit', content: [{ type: 'text', text: newText }] } } })
-      toast('已更新待ち行列内容 ✓')
+      toast('待ち行列の内容を更新しました ✓')
       closeQSheet()
-    } catch (e) { toast('更新失败：' + e.message, true) }
+    } catch (e) { toast('更新できませんでした：' + e.message, true) }
   }
   $('#q-a-steer').onclick = async () => {
     vibrate(8)
@@ -3185,7 +3190,7 @@ function openQSheet(s, q) {
       // 防幽灵：同一文本若已落地（事件先到）或已有待转正回显（重复点插话），不再回显第二次
       const t24 = (text || '').slice(0, 24)
       if (t24 && s.items.some((x) => x.kind === 'user' && (x.text || '').slice(0, 24) === t24)) {
-        toast('已转为插话 ⚡')
+        toast('割り込みに変更しました ⚡')
         closeQSheet()
         renderQueueStrip(s)
         return
@@ -3193,18 +3198,18 @@ function openQSheet(s, q) {
       const src = qm && qm.message && qm.message.source
       const rid = src && (src.requestId || src.rpcId) || null   // 与持久事件的 source.rpcId 同值：到了就地转正（现成去重逻辑）
       s.items.push({ kind: 'user', text, images: images.length ? images : null, time: Date.now(), pending: true, steering: true, steerEcho: true, rpcId: rid })
-      toast('已转为插话 ⚡')
+      toast('割り込みに変更しました ⚡')
       closeQSheet()
       if (S.current === sid) { renderChat(s, true); renderQueueStrip(s) } else renderQueueStrip(s)
-    } catch (e) { toast('转换失败：' + e.message, true) }
+    } catch (e) { toast('変更できませんでした：' + e.message, true) }
   }
   $('#q-a-del').onclick = async () => {
     vibrate(8)
     try {
       await rpc('session/updateQueue', { request: { sessionId: sid, itemId, action: { kind: 'remove' } } })
-      toast('已删除待ち行列 🗑')
+      toast('待ち行列から削除しました 🗑')
       closeQSheet()
-    } catch (e) { toast('删除失败：' + e.message, true) }
+    } catch (e) { toast('削除できませんでした：' + e.message, true) }
   }
   ovSet('q-ov', true); sheet.classList.add('open')
 }
@@ -3270,7 +3275,7 @@ function howAnalyzeStart(sid) {
     const best = done[0] || null
     const cp = vals.contextPressure || {}
     const out = {
-      sid, title: String(vals.title || '未命名会話'), asOf,
+      sid, title: String(vals.title || '名前のない会話'), asOf,
       best, totalTurns: done.length, totalSteps: done.reduce((a, t) => a + t.steps, 0),
       totalTools: done.reduce((a, t) => a + t.tools, 0),
       ctxPct: cp.contextWindow ? Math.round(cp.pressureTokens / cp.contextWindow * 100) : null,
@@ -3286,7 +3291,7 @@ function howRing(size, fs) {
   const r = size * 0.19
   const C = 2 * Math.PI * r
   wrap.innerHTML = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="' + r + '" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="' + (size / 26) + '"/><circle class="how-ring-arc" cx="50" cy="50" r="' + r + '" fill="none" stroke="var(--accent)" stroke-width="' + (size / 26) + '" stroke-linecap="round" stroke-dasharray="' + (C * 0.72) + ' ' + C + '"/></svg>'
-  const st = [['想', '50%', '6%'], ['做', '94%', '50%'], ['看', '50%', '94%'], ['再想', '6%', '50%']]
+  const st = [['考える', '50%', '6%'], ['実行', '94%', '50%'], ['確認', '50%', '94%'], ['再検討', '6%', '50%']]
   const sts = []
   for (const [nm, l, t] of st) {
     const d = el('div', 'how-stn')
@@ -3300,7 +3305,7 @@ function howRing(size, fs) {
   const ct = el('div', 'how-ring-ct')
   ct.style.fontSize = (fs || Math.round(size / 6)) + 'px'
   wrap.appendChild(ct)
-  return { el: wrap, sts, ct, setPhase: (i) => sts.forEach((x, j) => x.classList.toggle('lit', j === i % 4)), setCount: (n, sub) => { ct.innerHTML = n + '<small>' + (sub || ' 圈') + '</small>' } }
+  return { el: wrap, sts, ct, setPhase: (i) => sts.forEach((x, j) => x.classList.toggle('lit', j === i % 4)), setCount: (n, sub) => { ct.innerHTML = n + '<small>' + (sub || '回') + '</small>' } }
 }
 /* —— 主入口 —— */
 function openHowItWorks(s) {
@@ -3344,7 +3349,7 @@ function howBuildStory(s, an) {
   if (!body) return
   body.textContent = ''
   const lastUser = [...(s.items || [])].reverse().find((x) => x.kind === 'user' && x.text)
-  const ut = (lastUser && lastUser.text || '帮我看看这个项目…').replace(/\n+/g, ' ').slice(0, 40)
+  const ut = (lastUser && lastUser.text || 'このプロジェクトを確認してください…').replace(/\n+/g, ' ').slice(0, 40)
   const best = an && !an.error && an.best
   const steps = best ? best.steps : 7
   const files = best ? best.files.size : 5
@@ -3354,49 +3359,49 @@ function howBuildStory(s, an) {
   const track = el('div', 'how-track')
   const slide = (html) => { const sl = el('section', 'how-slide'); sl.innerHTML = html; return sl }
   track.appendChild(slide(
-    '<div class="how-big">你看到的<br>只是一条回复</div>' +
+    '<div class="how-big">画面に見えるのは<br>ひとつの回答</div>' +
     '<div class="how-bub u">' + howEsc(ut) + '</div>' +
     '<div class="how-vs">' +
-    '<div class="how-vs-t">背后实际发生的</div>' +
-    '<div class="fx r1"><span>🧠</span>先转了 <b data-how="steps">' + steps + '</b> 圈：想→做→看→再想</div>' +
-    '<div class="fx r2"><span>📄</span>翻了 <b data-how="files">' + files + '</b> 个文件</div>' +
-    '<div class="fx r3"><span>⌨️</span>跑了 <b data-how="bash">' + bash + '</b> 条命令</div>' +
-    '<div class="fx r4 how-last"><span>💬</span>最后才写下你看到的这段话</div>' +
-    '</div><div class="how-hint">数字来自你这条会話的真实日志 · 右滑继续 →</div>'))
+    '<div class="how-vs-t">裏側で行われていること</div>' +
+    '<div class="fx r1"><span>🧠</span>まず<b data-how="steps">' + steps + '</b>回：考える→実行→確認→再検討</div>' +
+    '<div class="fx r2"><span>📄</span>確認したファイルは<b data-how="files">' + files + '</b>件</div>' +
+    '<div class="fx r3"><span>⌨️</span>実行したコマンドは<b data-how="bash">' + bash + '</b>件</div>' +
+    '<div class="fx r4 how-last"><span>💬</span>最後に画面に表示する回答を書きます</div>' +
+    '</div><div class="how-hint">数値はこの会話の実際のログに基づきます · スワイプして次へ →</div>'))
   track.appendChild(slide(
-    '<div class="how-big">电话那头的专家<br>很聪明，但看不见</div>' +
-    '<div class="how-cloud fx c1">🧠<i>只会想 · 只会说</i></div>' +
+    '<div class="how-big">電話の向こうの専門家は<br>考えられますが、画面は見えません</div>' +
+    '<div class="how-cloud fx c1">🧠<i>考えることと話すことが役割です</i></div>' +
     '<div class="how-wire fx c2"></div>' +
     '<div class="how-tel fx c2">☎️</div>' +
     '<div class="how-senses">' +
-    '<div class="fx c3">👁<b>✕</b><span>看不见你的电脑</span></div>' +
-    '<div class="fx c4">✋<b>✕</b><span>摸不到你的文件</span></div>' +
-    '<div class="fx c5">🏃<b>✕</b><span>不能自己动手</span></div></div>' +
-    '<div class="how-desc fx c6">它像电话里的专家：只能听你说、只能开口答。<br>其余一切，得有人替它做。</div>'))
+    '<div class="fx c3">👁<b>✕</b><span>PCの画面は見えません</span></div>' +
+    '<div class="fx c4">✋<b>✕</b><span>ファイルには直接触れられません</span></div>' +
+    '<div class="fx c5">🏃<b>✕</b><span>自分では操作できません</span></div></div>' +
+    '<div class="how-desc fx c6">電話の専門家のように、説明を聞いて答えることができます。<br>実際の操作は、別の役割が担当します。</div>'))
   track.appendChild(slide(
-    '<div class="how-big">Harness 替它动手</div>' +
+    '<div class="how-big">Harnessが操作を担当します</div>' +
     '<div class="how-chat">' +
-    '<div class="fx c1 how-m l"><span class="who">专家</span>「帮我<b>翻一下</b>那个文件」</div>' +
-    '<div class="fx c2 how-m r"><span class="who me">Harness</span>好，<b>正在翻看</b> · 念给它听</div>' +
-    '<div class="fx c3 how-m l"><span class="who">专家</span>「<b>跑一下</b>看看结果」</div>' +
-    '<div class="fx c4 how-m r"><span class="who me">Harness</span>好，<b>执行完毕</b> · 全部通过</div>' +
-    '<div class="fx c5 how-m l"><span class="who">专家</span>「行了，我来总结」</div>' +
-    '</div><div class="how-desc fx c6">你界面里的每张工具卡片，就是右边这些「好，正在…」</div>'))
+    '<div class="fx c1 how-m l"><span class="who">専門家</span>「そのファイルを<b>確認してください</b>」</div>' +
+    '<div class="fx c2 how-m r"><span class="who me">Harness</span>はい、<b>確認しています</b> · 結果を伝えます</div>' +
+    '<div class="fx c3 how-m l"><span class="who">専門家</span>「<b>実行して</b>、結果を確認してください」</div>' +
+    '<div class="fx c4 how-m r"><span class="who me">Harness</span>はい、<b>実行しました</b> · すべて成功しました</div>' +
+    '<div class="fx c5 how-m l"><span class="who">専門家</span>「結果をまとめます」</div>' +
+    '</div><div class="how-desc fx c6">画面のツールカードは、右側にある実際の操作を表しています</div>'))
   const ring4 = howRing(210, 34)
   const s4 = slide(
-    '<div class="how-big">你的一条メッセージ<br>实际转了 <span data-how="steps2">' + steps + '</span> 圈</div>')
+    '<div class="how-big">ひとつのメッセージについて<br>実際には<span data-how="steps2">' + steps + '</span>回</div>')
   ring4.el.classList.add('fx', 'c2')
   ring4.setCount(steps)
   s4.appendChild(ring4.el)
   HOW.ring4 = ring4
-  s4.appendChild(el('div', 'how-desc fx c3', '不是一问一答——是想→做→看→再想，\n直到它说「我可以汇报了」。'))
+  s4.appendChild(el('div', 'how-desc fx c3', '考える→実行→確認→再検討を繰り返し、\n結果を報告できる状態まで進めます。'))
   track.appendChild(s4)
   track.appendChild(slide(
-    '<div class="how-big">每说一句<br>案卷就厚一分</div>' +
+    '<div class="how-big">会話を重ねると<br>履歴も増えていきます</div>' +
     '<div class="how-stack fx c2"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>' +
-    '<div class="how-press fx c3"><div class="lbl"><span>这条会話的案卷厚度（上下文）</span><span data-how="ctx">' + ctxPct + '%</span></div><div class="pbar"><i style="width:' + ctxPct + '%"></i></div></div>' +
-    '<div class="how-desc fx c4">太厚会自动做摘要再继续——<br>这也是长对话偶尔「忘事」的原因。</div>' +
-    '<button class="how-cta fx c5" type="button">看看你自己最近的对话 →</button>'))
+    '<div class="how-press fx c3"><div class="lbl"><span>この会話の履歴量（コンテキスト）</span><span data-how="ctx">' + ctxPct + '%</span></div><div class="pbar"><i style="width:' + ctxPct + '%"></i></div></div>' +
+    '<div class="how-desc fx c4">履歴が増えると要約して続けます。<br>長い会話で細部が失われることがあるのは、このためです。</div>' +
+    '<button class="how-cta fx c5" type="button">最近の会話を確認する →</button>'))
   body.appendChild(track)
   howDotsRender(5, 0)
   // 滑动 → 圆点/页码
@@ -3430,23 +3435,23 @@ async function howShowPicker() {
   $('#how-back').style.display = ''
   const body = $('#how-body')
   body.textContent = ''
-  body.appendChild(el('div', 'how-big', '挑一条你自己的对话'))
-  body.appendChild(el('div', 'how-desc', '下面是你最近的会話，点开看它的「幕后」'))
+  body.appendChild(el('div', 'how-big', '確認する会話を選んでください'))
+  body.appendChild(el('div', 'how-desc', '最近の会話を開くと、裏側の処理を確認できます'))
   const listEl = el('div', 'how-list')
   body.appendChild(listEl)
   try {
     const list = await rpc('session/list', { _request: { limit: 40 } })
     const items = (list.items || []).filter((x) => !x.archived && x.origin !== 'subagent' && (x.projections && x.projections.asOfSeq || 0) > 60).slice(0, 6)
-    if (!items.length) { listEl.appendChild(el('div', 'how-desc', '没找到足够长的会話')); return }
+    if (!items.length) { listEl.appendChild(el('div', 'how-desc', '分析できる長さの会話がありません')); return }
     for (const it of items) {
       const vals = (it.projections && it.projections.values) || {}
       const row = btnize(el('div', 'how-srow'))
-      row.appendChild(el('div', 'how-st', String(vals.title || '未命名会話').slice(0, 26)))
-      row.appendChild(el('div', 'how-sd', (it.projections.asOfSeq || 0) + ' 条事件 · 读取中…'))
-      row.onclick = async () => { vibrate(8); row.querySelector('.how-sd').textContent = '分析中…'; howShowBreakdown(it.sessionId) }
+      row.appendChild(el('div', 'how-st', String(vals.title || '名前のない会話').slice(0, 26)))
+      row.appendChild(el('div', 'how-sd', (it.projections.asOfSeq || 0) + '件のイベント · 読み込み中…'))
+      row.onclick = async () => { vibrate(8); row.querySelector('.how-sd').textContent = '分析しています…'; howShowBreakdown(it.sessionId) }
       listEl.appendChild(row)
     }
-  } catch (e) { listEl.appendChild(el('div', 'how-desc', '读取失败：' + e.message)) }
+  } catch (e) { listEl.appendChild(el('div', 'how-desc', '読み取れませんでした：' + e.message)) }
 }
 /* —— 单会話拆解 —— */
 async function howShowBreakdown(sid) {
@@ -3454,33 +3459,33 @@ async function howShowBreakdown(sid) {
   $('#how-back').style.display = ''
   const body = $('#how-body')
   body.textContent = ''
-  body.appendChild(el('div', 'how-big', '正在分析…'))
+  body.appendChild(el('div', 'how-big', '分析しています…'))
   const an = await howAnalyze(sid)
   HOW.ctx = HOW.ctx || {}
   HOW.ctx.an = an
   body.textContent = ''
-  if (an.error || !an.best) { body.appendChild(el('div', 'how-desc', an.error || '这条会話还没有完成的轮')); return }
+  if (an.error || !an.best) { body.appendChild(el('div', 'how-desc', an.error || 'この会話には完了した応答がありません')); return }
   const b = an.best
-  const fmtDur = (ms) => { const s2 = Math.round(ms / 1000); if (s2 >= 3600) return (s2 / 3600).toFixed(1) + ' 小时'; if (s2 >= 60) return Math.round(s2 / 60) + ' 分钟'; return s2 + ' 秒' }
+  const fmtDur = (ms) => { const s2 = Math.round(ms / 1000); if (s2 >= 3600) return (s2 / 3600).toFixed(1) + ' 時間'; if (s2 >= 60) return Math.round(s2 / 60) + ' 分'; return s2 + ' 秒' }
   body.appendChild(el('div', 'how-big', howEsc(an.title.slice(0, 16))))
-  body.appendChild(el('div', 'how-bub u', howEsc(b.userText || '（一条メッセージ）')))
+  body.appendChild(el('div', 'how-bub u', howEsc(b.userText || '（ひとつのメッセージ）')))
   const vs = el('div', 'how-vs')
   vs.innerHTML =
-    '<div class="fx r1"><span>🧠</span>转了 <b>' + b.steps + '</b> 圈（想→做→看→再想）</div>' +
-    '<div class="fx r2"><span>📄</span>翻了 <b>' + b.files.size + '</b> 个文件' + (b.files.size ? '（' + [...b.files].slice(0, 3).join('、') + (b.files.size > 3 ? '…' : '') + '）' : '') + '</div>' +
-    '<div class="fx r3"><span>⌨️</span>跑了 <b>' + b.bash + '</b> 条命令，共 <b>' + fmtDur(b.t1 - b.t0) + '</b></div>' +
-    '<div class="fx r4 how-last"><span>💬</span>最后写下你看到的回复</div>'
+    '<div class="fx r1"><span>🧠</span>処理を繰り返した回数は<b>' + b.steps + '</b>回（考える→実行→確認→再検討）</div>' +
+    '<div class="fx r2"><span>📄</span>確認したファイルは<b>' + b.files.size + '</b>件' + (b.files.size ? '（' + [...b.files].slice(0, 3).join('、') + (b.files.size > 3 ? '…' : '') + '）' : '') + '</div>' +
+    '<div class="fx r3"><span>⌨️</span>実行したコマンドは<b>' + b.bash + '</b>件、合計<b>' + fmtDur(b.t1 - b.t0) + '</b></div>' +
+    '<div class="fx r4 how-last"><span>💬</span>最後に画面に表示する回答を書きます</div>'
   body.appendChild(vs)
   const ring = howRing(180, 30)
   ring.setCount(b.steps)
   body.appendChild(ring.el)
-  const meta = el('div', 'how-desc', '全会話共 ' + an.totalTurns + ' 轮对话 · 累计 ' + an.totalSteps + ' 圈 · ' + an.totalTools + ' 次动手' + (an.ctxPct != null ? ' · 案卷 ' + an.ctxPct + '%' : ''))
+  const meta = el('div', 'how-desc', '会話全体で' + an.totalTurns + '回目の応答 · 合計' + an.totalSteps + '回 · ' + an.totalTools + '回の操作' + (an.ctxPct != null ? ' · 履歴量 ' + an.ctxPct + '%' : ''))
   body.appendChild(meta)
-  const btn = el('button', 'how-cta', '▶ 导演视角：回放这一轮')
+  const btn = el('button', 'how-cta', '▶ 処理の流れ：この応答を再生')
   btn.type = 'button'
   btn.onclick = () => howReplay(an)
   body.appendChild(btn)
-  const btn2 = el('button', 'how-cta ghost', '📞 电话记录：一轮轮看它俩说了什么')
+  const btn2 = el('button', 'how-cta ghost', '📞 やり取りの記録：入力と出力を確認')
   btn2.type = 'button'
   btn2.onclick = () => howDialogue(an)
   body.appendChild(btn2)
@@ -3526,12 +3531,12 @@ function howDialogue(an) {
     if (!cur) {
       if (e.type === 'tool/result') {
         const t = howToolResultText(e)
-        if (t != null) pendingNew.push({ ic: '📄', pv: '执行结果（' + t.length + ' 字）', full: t.slice(0, 1200) })
+        if (t != null) pendingNew.push({ ic: '📄', pv: '実行結果（' + t.length + '文字）', full: t.slice(0, 1200) })
       } else if (e.type === 'user/message' && e.data && e.data.source && e.data.source.kind === 'user') {
         const t = howPlainText(e.data.content).replace(/\n+/g, ' ').trim()
-        if (t) { pendingNew.push({ ic: '🙋', pv: '用户插话：「' + t.slice(0, 40) + (t.length > 40 ? '…' : '') + '」', full: t }); if (!firstUser) firstUser = t }
+        if (t) { pendingNew.push({ ic: '🙋', pv: 'ユーザーの割り込み：「' + t.slice(0, 40) + (t.length > 40 ? '…' : '') + '」', full: t }); if (!firstUser) firstUser = t }
       } else if (e.type && e.type.indexOf('compaction/') === 0) {
-        pendingNew.push({ ic: '📦', pv: '案卷太厚，做了一次摘要（压缩后重念）', full: '' })
+        pendingNew.push({ ic: '📦', pv: '履歴を要約しました（圧縮後の内容を使って続行）', full: '' })
       }
       continue
     }
@@ -3547,23 +3552,23 @@ function howDialogue(an) {
       cur.calls.push({ name: e.data.name, args })
     }
   }
-  if (!firstUser) firstUser = b.userText || '（新任务）'
-  body.appendChild(el('div', 'how-big', '电话记录'))
-  body.appendChild(el('div', 'how-desc', '🧠 专家（モデル）：只有脑子、耳朵、嘴——会想、会听、会说，自己动不了手。\n🤖 助理（Harness）：有手有脚有眼睛——替它翻文件、跑命令，再把结果念给它听。\n\n每一通电话 = 一轮 input / output。点任何一条可展开真实内容。'))
-  body.appendChild(el('div', 'how-dlgmeta', '这一轮共 ' + rounds.length + ' 通电话'))
+  if (!firstUser) firstUser = b.userText || '（新しいタスク）'
+  body.appendChild(el('div', 'how-big', 'やり取りの記録'))
+  body.appendChild(el('div', 'how-desc', '🧠 モデル：入力を読み、考え、回答します。ファイルやコマンドは直接操作しません。\n🤖 Harness：ファイルの確認やコマンドの実行を担当し、結果をモデルへ伝えます。\n\n1件のやり取りは入力と出力の1往復です。各項目をタップすると実際の内容を確認できます。'))
+  body.appendChild(el('div', 'how-dlgmeta', 'この応答のやり取りは' + rounds.length + '往復'))
   const list = el('div', 'how-dlg')
   for (const r of rounds) {
-    const div = el('div', 'how-dlg-div', '☎️ 第 ' + r.n + ' 通')
+    const div = el('div', 'how-dlg-div', '☎️ 第 ' + r.n + '往復目')
     list.appendChild(div)
     // —— 助理的嘴：input（念给它听）——
     const lb = el('div', 'how-dlg-b l')
-    lb.appendChild(el('div', 'who', '🤖 助理念给它听（input）'))
+    lb.appendChild(el('div', 'who', '🤖 Harnessがモデルへ渡す内容（入力）'))
     if (r.n === 1) {
-      lb.appendChild(el('div', 'ln', '规则手册 + 工具清单（它能请你做的一切）'))
-      lb.appendChild(el('div', 'ln', '用户的新メッセージ'))
+      lb.appendChild(el('div', 'ln', '指示とツール一覧（依頼できる操作）'))
+      lb.appendChild(el('div', 'ln', 'ユーザーの新しいメッセージ'))
       lb.appendChild(howDetails('🙋「' + firstUser.slice(0, 36) + (firstUser.length > 36 ? '…' : '') + '」', firstUser, false))
     } else {
-      lb.appendChild(el('div', 'ln', '把到目前为止的案卷从头念一遍' + (r.news.length ? '，新增 ' + r.news.length + ' 页：' : '（本轮没有新内容）')))
+      lb.appendChild(el('div', 'ln', 'それまでの履歴を最初から渡します' + (r.news.length ? '、追加された' + r.news.length + '件の内容：' : '（この応答では追加なし）')))
     }
     for (const nw of r.news) {
       if (nw.full) lb.appendChild(howDetails(nw.ic + ' ' + nw.pv, nw.full, nw.ic === '📄'))
@@ -3572,17 +3577,17 @@ function howDialogue(an) {
     list.appendChild(lb)
     // —— 专家的嘴：output ——
     const rb = el('div', 'how-dlg-b r')
-    rb.appendChild(el('div', 'who', '🧠 专家回答（output）'))
-    if (r.thinks) rb.appendChild(howDetails('💭 先沉吟了 ' + (r.thinks > 999 ? Math.round(r.thinks / 100) / 10 + ' 千' : r.thinks) + ' 字', (r.thinkTxt || '').slice(0, 2500) + (r.thinkTxt.length > 2500 ? '\n…（太长已截断）' : ''), false))
+    rb.appendChild(el('div', 'who', '🧠 モデルの回答（出力）'))
+    if (r.thinks) rb.appendChild(howDetails('💭 思考内容は' + (r.thinks > 999 ? Math.round(r.thinks / 100) / 10 + ' 千' : r.thinks) + '文字', (r.thinkTxt || '').slice(0, 2500) + (r.thinkTxt.length > 2500 ? '\n…（長いため省略しました）' : ''), false))
     for (const c2 of r.calls) {
       const cmd = c2.args.command || c2.args.file_path || c2.args.path || c2.args.pattern || ''
       const pv = howToolLabel(c2.name, c2.args)[1]
       rb.appendChild(howDetails('👄「' + pv + (cmd ? '：' + String(cmd).slice(0, 30) : '') + '」', c2.name + ' ' + JSON.stringify(c2.args, null, 1), true))
     }
     for (const tx of r.says) {
-      rb.appendChild(howDetails('👄 汇报：「' + tx.replace(/\n+/g, ' ').slice(0, 36) + (tx.length > 36 ? '…' : '') + '」', tx.slice(0, 2500), false))
+      rb.appendChild(howDetails('👄 報告：「' + tx.replace(/\n+/g, ' ').slice(0, 36) + (tx.length > 36 ? '…' : '') + '」', tx.slice(0, 2500), false))
     }
-    if (!r.thinks && !r.calls.length && !r.says.length) rb.appendChild(el('div', 'ln', '（这一通没说话就挂了）'))
+    if (!r.thinks && !r.calls.length && !r.says.length) rb.appendChild(el('div', 'ln', '（この往復には回答がありません）'))
     list.appendChild(rb)
   }
   body.appendChild(list)
@@ -3591,15 +3596,15 @@ function howDialogue(an) {
 function howToolLabel(name, args) {
   const f = String(args.file_path || args.path || '').split('/').pop()
   const m = {
-    bash: ['⌨️', '跑命令' + (args.command ? ' ' + String(args.command).slice(0, 18) : '')],
-    read: ['📄', '翻看 ' + (f || '文件')],
-    write: ['✏️', '写 ' + (f || '文件')],
-    edit: ['✏️', '改 ' + (f || '文件')],
-    grep: ['🔍', '搜代码'],
-    glob: ['🗂', '找文件'],
+    bash: ['⌨️', 'コマンドを実行' + (args.command ? ' ' + String(args.command).slice(0, 18) : '')],
+    read: ['📄', '読み取り：' + (f || 'ファイル')],
+    write: ['✏️', '書き込み：' + (f || 'ファイル')],
+    edit: ['✏️', '変更：' + (f || 'ファイル')],
+    grep: ['🔍', 'コードを検索'],
+    glob: ['🗂', 'ファイルを検索'],
     todo_write: ['📋', '更新タスク一覧'],
-    web_search: ['🌐', '搜网页'],
-    web_fetch: ['🌐', '读网页'],
+    web_search: ['🌐', 'Webを検索'],
+    web_fetch: ['🌐', 'Webページを読み取り'],
   }
   return m[name] || ['🔧', name]
 }
@@ -3625,10 +3630,10 @@ function howReplay(an) {
       evs.push({ t: e.time, ph: 2, kind: 'say', rlen: rl })
     }
   }
-  if (!evs.length) { body.appendChild(el('div', 'how-desc', '这一轮没有可回放的事件')); return }
+  if (!evs.length) { body.appendChild(el('div', 'how-desc', 'この応答には再生できるイベントがありません')); return }
   const t0 = evs[0].t, t1 = evs[evs.length - 1].t
   const span = Math.max(6000, Math.min(14000, (t1 - t0) * 0.004))   // 加速重演：整轮压到 6–14 秒
-  body.appendChild(el('div', 'how-big', '导演视角 · 回放'))
+  body.appendChild(el('div', 'how-big', '処理の流れ · 再生'))
   const head = el('div', 'how-drcnt', '×' + Math.max(1, Math.round((t1 - t0) / 1000 / (span / 1000))) + ' 速度')
   body.appendChild(head)
   const ring = howRing(168, 30)
@@ -3638,7 +3643,7 @@ function howReplay(an) {
   wrap.append(ring.el, feed)
   body.appendChild(wrap)
   const stats = el('div', 'how-drstats')
-  stats.innerHTML = '<span>第 <b id="how-n">0</b> 圈</span><span>动手 <b id="how-t">0</b> 次</span><span>思考 <b id="how-w">0</b> 字</span>'
+  stats.innerHTML = '<span>第 <b id="how-n">0</b>回</span><span>操作 <b id="how-t">0</b>回</span><span>思考 <b id="how-w">0</b>文字</span>'
   body.appendChild(stats)
   let i = 0, nC = 0, nT = 0, nW = 0
   const start = performance.now()
@@ -3653,18 +3658,18 @@ function howReplay(an) {
       if (ev.kind === 'say') {
         nW += ev.rlen || 0
         const w2 = $('#how-w'); if (w2) w2.textContent = nW > 999 ? Math.round(nW / 100) / 10 + '千' : nW
-        const row = el('div', 'how-frow say', '💬 写下一段回复'); feed.appendChild(row); feed.scrollTop = feed.scrollHeight
+        const row = el('div', 'how-frow say', '💬 回答を書いています'); feed.appendChild(row); feed.scrollTop = feed.scrollHeight
       }
     }
     if (i < evs.length) HOW.raf = requestAnimationFrame(tick)
-    else { ring.setPhase(4); const done2 = el('div', 'how-frow done2', '✓ 本轮结束，向你汇报'); feed.appendChild(done2); feed.scrollTop = feed.scrollHeight }
+    else { ring.setPhase(4); const done2 = el('div', 'how-frow done2', '✓ この応答を終えて結果を報告します'); feed.appendChild(done2); feed.scrollTop = feed.scrollHeight }
   }
   HOW.raf = requestAnimationFrame(tick)
 }
 
 /* #/proto —— Harness 可视化原型（评审用：无任何入口，不影响现有界面；评审通过后做成 ⋯ 里的正式功能） */
-const PROTO_STYLE = "\n:root {\n  --bg:#0b0e14; --bg-elev:#12161f; --bg-card:#171c28; --bg-card-2:#1d2331;\n  --line:rgba(255,255,255,.08); --text:#e8ebf1; --text-2:#9aa3b2; --text-3:#7d8590;\n  --accent:#3b82f6; --accent-soft:rgba(59,130,246,.16); --accent-fill:#2563eb;\n  --green:#34c759; --orange:#ff9f0a; --red:#ff453a; --purple:#bf5af2; --info:#6aa6ff;\n  --font:-apple-system,BlinkMacSystemFont,\"SF Pro Text\",\"PingFang SC\",\"Helvetica Neue\",sans-serif;\n  --mono:ui-monospace,\"SF Mono\",Menlo,monospace;\n}\n* { box-sizing:border-box; margin:0; padding:0; }\nbody { background:#07090d; font-family:var(--font); color:var(--text); padding:36px 40px 60px; }\n.board { max-width:1720px; margin:0 auto; }\nh1 { font-size:26px; margin-bottom:6px; }\n.sub { color:var(--text-3); font-size:14px; margin-bottom:34px; }\n.sec { margin-bottom:44px; }\n.sec-title { font-size:17px; font-weight:700; margin-bottom:4px; }\n.sec-sub { font-size:13px; color:var(--text-3); margin-bottom:20px; }\n.row { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }\n.cell { display:flex; flex-direction:column; gap:12px; }\n.cap { font-size:13px; color:var(--text-2); line-height:1.6; max-width:300px; }\n.cap b { color:var(--text); }\n.cap .tag { display:inline-block; font-size:11px; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:1px 7px; margin-bottom:4px; }\n/* 手机框 */\n.phone { width:300px; height:630px; background:var(--bg); border:1px solid var(--line); border-radius:34px; overflow:hidden; position:relative; flex:none; box-shadow:0 18px 50px rgba(0,0,0,.5); }\n.notch { position:absolute; top:8px; left:50%; transform:translateX(-50%); width:88px; height:22px; background:#000; border-radius:11px; z-index:9; }\n.statusbar { height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 4px; font-size:11px; color:var(--text-2); }\n.screen { position:absolute; inset:40px 0 0; display:flex; flex-direction:column; }\n/* 页头（故事页共用） */\n.story-head { padding:10px 18px 6px; display:flex; align-items:center; gap:8px; }\n.story-head .n { width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }\n.story-head .t { font-size:15px; font-weight:700; }\n.story-body { flex:1; padding:8px 18px 16px; display:flex; flex-direction:column; }\n.story-big { font-size:21px; font-weight:700; line-height:1.45; margin:6px 0 8px; }\n.story-desc { font-size:13px; color:var(--text-2); line-height:1.7; }\n.dots { display:flex; gap:6px; justify-content:center; padding:10px 0 14px; }\n.dots i { width:6px; height:6px; border-radius:3px; background:var(--line); }\n.dots i.on { background:var(--accent); width:16px; }\n/* 通用气泡 */\n.bub-u { align-self:flex-end; max-width:82%; background:var(--accent-fill); color:#fff; border-radius:16px 16px 4px 16px; padding:9px 13px; font-size:13.5px; line-height:1.5; }\n.bub-b { align-self:flex-start; max-width:82%; background:var(--bg-card); border:1px solid var(--line); border-radius:16px 16px 16px 4px; padding:9px 13px; font-size:13.5px; line-height:1.5; color:var(--text); }\n.meta { font-size:10px; color:var(--text-3); margin:2px 10px 0 auto; }\n/* ============ 屏1：你看到的 vs 背后 ============ */\n.vs-wrap { position:relative; margin-top:14px; flex:1; display:flex; flex-direction:column; }\n.vs-behind { flex:1; border:1.5px dashed rgba(59,130,246,.5); border-radius:14px; background:rgba(59,130,246,.05); padding:12px 12px 10px; margin-top:34px; position:relative; }\n.vs-behind::before { content:\"背后实际发生的\"; position:absolute; top:-11px; left:12px; background:var(--bg); padding:0 8px; font-size:11px; color:var(--accent); }\n.vs-row { display:flex; gap:8px; align-items:center; background:var(--bg-card); border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-bottom:7px; font-size:12px; color:var(--text-2); }\n.vs-row .ic { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; flex:none; }\n.vs-tail { text-align:center; color:var(--text-3); font-size:16px; line-height:1; margin:2px 0 6px; }\n/* ============ 屏2：电话里的盲专家 ============ */\n.phone-demo { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; position:relative; }\n.cloud { width:120px; height:74px; border-radius:40px; background:var(--bg-card-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:30px; position:relative; z-index:2; }\n.cloud::after { content:\"只会想 · 只会说\"; position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); font-size:11px; color:var(--text-3); white-space:nowrap; }\n.wire { width:2px; height:52px; background:linear-gradient(var(--purple), transparent); margin:26px 0 8px; }\n.tel { font-size:46px; }\n.senses { display:flex; gap:14px; margin-top:26px; }\n.sense { text-align:center; font-size:11px; color:var(--text-3); }\n.sense .x { font-size:22px; position:relative; display:block; margin-bottom:4px; }\n.sense .x::after { content:\"✕\"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--red); font-size:22px; font-weight:700; }\n/* ============ 屏3：手和眼 ============ */\n.hands { flex:1; display:flex; flex-direction:column; gap:10px; justify-content:center; }\n.hm { display:flex; gap:10px; }\n.hm .side { width:86px; flex:none; text-align:center; font-size:11px; color:var(--text-3); }\n.hm .side .em { font-size:26px; display:block; margin-bottom:3px; }\n.hm .bub-s { flex:1; background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:8px 11px; font-size:12.5px; line-height:1.55; color:var(--text-2); }\n.hm .bub-s b { color:var(--text); }\n.hm .bub-s.do { border-color:rgba(52,199,89,.35); }\n.hm .bub-s.do b { color:var(--green); }\n/* ============ 屏4：循环 ============ */\n.ring-wrap { flex:1; display:flex; align-items:center; justify-content:center; position:relative; }\n.ring { width:212px; height:212px; position:relative; }\n.ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.stn { position:absolute; width:64px; height:64px; margin:-32px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:12px; font-weight:600; color:var(--text-2); }\n.stn .em2 { font-size:17px; }\n.stn.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.18); box-shadow:0 0 24px rgba(59,130,246,.35); }\n.ring-ct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }\n.ring-ct .k { font-size:11px; color:var(--text-3); }\n.ring-ct .v { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }\n.ring-ct .v small { font-size:12px; font-weight:600; color:var(--text-3); }\n/* ============ 屏5：案卷 ============ */\n.papers { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }\n.stack { position:relative; width:150px; }\n.p { height:15px; background:var(--bg-card-2); border:1px solid var(--line); border-radius:3px; margin-top:-4px; }\n.p.on { background:rgba(191,90,242,.25); border-color:rgba(191,90,242,.4); }\n.pressure { width:86%; }\n.pressure .lbl { display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-bottom:5px; }\n.pbar { height:8px; border-radius:4px; background:var(--bg-card); overflow:hidden; }\n.pbar i { display:block; height:100%; width:68%; border-radius:4px; background:linear-gradient(90deg, var(--accent), var(--orange)); }\n/* ============ 导演视角 ============ */\n.chat-mini { flex:1; overflow:hidden; padding:4px 14px; display:flex; flex-direction:column; gap:9px; }\n.engine-ov { position:absolute; left:0; right:0; bottom:0; background:var(--bg-elev); border-top:1px solid var(--line); border-radius:20px 20px 0 0; padding:12px 16px 14px; box-shadow:0 -14px 40px rgba(0,0,0,.5); }\n.eng-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }\n.eng-head .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s infinite; }\n@keyframes pulse { 0%,100% { opacity:1; transform:scale(1);} 50% { opacity:.4; transform:scale(.7);} }\n.eng-head .tt { font-size:14px; font-weight:700; }\n.eng-head .cnt { margin-left:auto; font-size:12px; color:var(--info); font-variant-numeric:tabular-nums; }\n.eng-body { display:flex; gap:14px; align-items:center; }\n.eng-ring { width:118px; height:118px; position:relative; flex:none; }\n.eng-ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.eng-acts { flex:1; min-width:0; }\n.eng-act { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:9px; font-size:12px; color:var(--text-2); }\n.eng-act.now { background:var(--accent-soft); color:var(--text); }\n.eng-act .st { margin-left:auto; font-size:10.5px; color:var(--text-3); }\n.eng-act.now .st { color:var(--info); }\n.st2 { position:absolute; width:46px; height:46px; margin:-23px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; color:var(--text-2); }\n.st2 .em2 { font-size:14px; }\n.st2.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.2); }\n/* ============ 人话模式 ============ */\n.toggle-row { display:flex; align-items:center; gap:8px; padding:10px 18px 4px; font-size:13px; color:var(--text-2); }\n.tg { margin-left:auto; width:42px; height:25px; border-radius:13px; background:var(--green); position:relative; }\n.tg::after { content:\"\"; position:absolute; top:2.5px; right:2.5px; width:20px; height:20px; border-radius:10px; background:#fff; }\n.toolcard { background:var(--bg-card); border:1px solid var(--line); border-radius:13px; padding:9px 12px; font-size:12.5px; }\n.toolcard .tc-h { display:flex; align-items:center; gap:7px; color:var(--text); font-weight:600; }\n.toolcard .tc-h .ic { font-size:14px; }\n.toolcard .tc-h .raw { margin-left:auto; font-size:10px; color:var(--text-3); font-family:var(--mono); }\n.toolcard .tc-b { margin-top:5px; color:var(--text-2); font-size:12px; line-height:1.55; }\n.arrow-note { text-align:center; color:var(--text-3); font-size:13px; margin:2px 0; }\n"
-const PROTO_HTML = "\n<div class=\"board\">\n  <h1>Harness 可视化 · 原型</h1>\n  <div class=\"sub\">隐喻主线：「电话里的盲专家」— モデル只会想和说，Harness 是它的手和眼。两层呈现：静态故事页（讲一次）+ 导演视角（运行中看）。不占主界面。</div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">第一层 · 故事页「一次对话是怎么完成的」</div>\n    <div class=\"sec-sub\">入口：⋯ 菜单底部一行「这是怎么工作的？」· 五屏横滑 · 每屏一句话 + 一个极简图形 · 数字取自当前会話真实数据</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">0</span><span class=\"t\">入口 · 现有界面不动</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">⋯ 菜单完全保持原样，只在最底多一行：</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">🧠</span>モデル</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">🛡</span>操作の権限</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(255,159,10,.15)\">📤</span>运行中送信</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📊</span>统计</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📋</span>コピー全部对话</div>\n              <div style=\"height:6px\"></div>\n              <div class=\"vs-row\" style=\"border-color:var(--accent); background:var(--accent-soft)\"><span class=\"ic\" style=\"background:rgba(59,130,246,.25)\">💡</span><b style=\"color:var(--text)\">这是怎么工作的？</b><span style=\"margin-left:auto; color:var(--accent)\">›</span></div>\n              <div class=\"story-desc\" style=\"margin-top:auto; line-height:1.7; padding-top:10px\">主界面、聊天流、输入区——<b style=\"color:var(--text)\">一个像素都不动</b>。<br>不看就当它不存在。</div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">零侵入</span><b>唯一改动：⋯ 底部一行。</b>也可以更小：做成设置里的一行，或首次使用第 3 天才出现一次的提示条。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">1</span><span class=\"t\">你看到的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">帮我看看这个项目的测试都覆盖了哪些模块</div>\n              <div class=\"meta\">14:02</div>\n              <div class=\"vs-wrap\">\n                <div class=\"vs-behind\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>先想了 26 秒，拆解你要什么</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 5 个文件，看了目录结构</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 2 条命令，找出所有测试</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后才写下你看到的那段话</div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i class=\"on\"></i><i></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">破冰</span><b>同一个气泡，背后是一场协作。</b>用用户自己刚发的メッセージ做例子，虚线框拉开「幕后」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">2</span><span class=\"t\">电话那头的专家</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">モデル很聪明，<br>但看不见也摸不着</div>\n              <div class=\"phone-demo\">\n                <div class=\"cloud\">🧠</div>\n                <div class=\"wire\"></div>\n                <div class=\"tel\">☎️</div>\n                <div class=\"senses\">\n                  <div class=\"sense\"><span class=\"x\">👁</span>看不见<br>你的电脑</div>\n                  <div class=\"sense\"><span class=\"x\">✋</span>摸不到<br>你的文件</div>\n                  <div class=\"sense\"><span class=\"x\">🏃</span>不能自己<br>动手做</div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"margin-top:10px\">它像电话里的专家：只能听你说，只能开口回答。其余一切，都需要有人替它做。</div>\n            </div>\n            <div class=\"dots\"><i></i><i class=\"on\"></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">核心隐喻</span><b>「盲」是关键。</b>它让「为什么需要工具、为什么有中间人」变得不言自明。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">3</span><span class=\"t\">手和眼</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">Harness 替它动手</div>\n              <div class=\"hands\">\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「帮我<b>翻一下</b>测试目录里有哪些文件」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>正在翻看</b> · tests/ 下有 14 个文件</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「<b>跑一下</b>测试，把结果念给我」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>执行完毕</b> · 全部通过，用了 8 秒</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「行了，我懂了，我来总结」</div></div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i class=\"on\"></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">分工</span><b>对话式呈现一来一回。</b>对应真实机制：モデル输出工具调用 → Harness 执行 → 结果回传。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">4</span><span class=\"t\">转 圈</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">你的一条メッセージ<br>实际转了 7 圈</div>\n              <div class=\"ring-wrap\">\n                <div class=\"ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这条メッセージ</span><span class=\"v\">7<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"text-align:center\">不是一问一答——是想→做→看→再想，<br>直到专家说「我可以汇报了」。</div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i class=\"on\"></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">反直觉点</span><b>圈数是真实数字。</b>从会話的 step 事件里取，冲击力全在「原来不是一问一答」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">5</span><span class=\"t\">案卷越念越厚</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">每说一句，<br>案卷就厚一分</div>\n              <div class=\"papers\">\n                <div class=\"stack\">\n                  <div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p\"></div><div class=\"p\"></div><div class=\"p\"></div>\n                </div>\n                <div class=\"pressure\">\n                  <div class=\"lbl\"><span>当前案卷厚度（上下文）</span><span>68%</span></div>\n                  <div class=\"pbar\"><i></i></div>\n                  <div class=\"lbl\" style=\"margin-top:7px; line-height:1.5\"><span style=\"color:var(--text-2)\">太厚时会自动做摘要再继续——<br>这也是长对话偶尔「忘事」的原因</span></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i></i><i class=\"on\"></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">收尾呼应</span><b>把「上下文压力」翻译成案卷厚度。</b>与统计面板里的真实数字互相印证。</div>\n      </div>\n\n    </div>\n  </div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">真实对话演示 · 数字全部来自会話事件日志</div>\n    <div class=\"sec-sub\">同一位用户最近的真实会話——同一个「幕后」拆解，换成真数据（已隐藏作業フォルダー路径细节）</div>\n    <div class=\"row\">\n<div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">总结今天使用DSH所做的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">总结一下我今天用DSH都干了些啥，不超过100个字。</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>8 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>0 个文件</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>7 条命令</b>，用了 1 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">8<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>7%</span></div><div class=\"pbar\"><i style=\"width:7%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">简单请求</span><b>「不超过100个字」的总结，也转了 8 圈。</b>它翻了整天的记录、跑了 7 条命令才敢下笔——普通人以为的一问一答，背后是完整的工作流程。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">门店补货逻辑HTML科普</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你用HTML做一个科普，给我们的这个门店补货的逻辑做个科普。我要给我们公司的…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>145 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（补货方法论与预测消费契约.md、门店补货业务方案.md、补货规则决策表.md 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>65 条命令</b>，用了 35 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">145<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>19%</span></div><div class=\"pbar\"><i style=\"width:19%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">做东西</span><b>给文员做一页科普。</b>一句话 → 145 圈 · 35 分钟：读业务方案、理解决策表、写页面、自查。案卷厚度 19%。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">方法调研</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你先做 P0 和P1吧，做完后你可以基于历史数据更新一下预测吗？我拿实际数据…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>163 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（cli.py、backtest.py、grain.py 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>106 条命令</b>，用了 3.2 小时</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">163<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>45%</span></div><div class=\"pbar\"><i style=\"width:45%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">深度调研</span><b>长任务的极限形态。</b>163 圈 · 3.2 小时 · 106 条命令。专家级耐心的价值一眼可见——也解释了为什么有时要等。</div>\n      </div>\n    </div>\n  </div>\n  <div class=\"sec\">\n    <div class=\"sec-title\">第二层 · 导演视角（运行中才能看）</div>\n    <div class=\"sec-sub\">入口：运行时 ⋯ 里出现「看它现在在干嘛」· 数据全部来自现有事件流（step / tool / reasoning）· 顺带解决「它在干嘛、卡没卡」</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"chat-mini\">\n              <div class=\"bub-u\">把刚才那版样式再调紧一点</div>\n              <div class=\"meta\">14:32</div>\n              <div class=\"bub-b\" style=\"color:var(--text-3)\">正在处理…</div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">⌨️</span>bash<span class=\"raw\">2.1s</span></div><div class=\"tc-b\">npm run build</div></div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\">web/style.css</div></div>\n            </div>\n            <div class=\"engine-ov\">\n              <div class=\"eng-head\"><span class=\"dot\"></span><span class=\"tt\">引擎</span><span class=\"cnt\">第 5 圈 · 工具 12 次 · 思考 34s</span></div>\n              <div class=\"eng-body\">\n                <div class=\"eng-ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"94 251\" style=\"filter:drop-shadow(0 0 5px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 80 26 l 5 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"st2 lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"st2\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"st2\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"st2\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                </div>\n                <div class=\"eng-acts\">\n                  <div class=\"eng-act now\">🧠 考えています <span class=\"st\">已 6s</span></div>\n                  <div class=\"eng-act\">📄 翻看了 style.css <span class=\"st\">0.3s</span></div>\n                  <div class=\"eng-act\">⌨️ 跑了构建命令 <span class=\"st\">2.1s</span></div>\n                  <div class=\"eng-act\">🔁 上一圈：改了间距 <span class=\"st\"></span></div>\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">实时</span><b>当前阶段亮起、环随进度填充。</b>说话式记录代替工具名，转圈图本身就是诚实的进度指示。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">+</span><span class=\"t\">对账 · 人话 ↔ 原版</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">讲解页末尾：把你<b style=\"color:var(--text)\">这条真实会話</b>翻译一遍（只在讲解内部，不改真实聊天）</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>翻看了文件<span class=\"raw\">read · 0.3s</span></div><div class=\"tc-b\">web/app.js（4600 行）——扫了滚动和抽屉相关部分</div></div>\n              <div class=\"arrow-note\">↓ 同一张卡片，你平时看到的</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\" style=\"font-family:var(--mono); font-size:11px\">web/app.js</div></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">渗透（可选）</span><b>只在讲解页内部对照。</b>真实聊天一个像素不动；将来若想要常驻人话版，再作为设置里的可选项讨论。</div>\n      </div>\n\n      <div class=\"cell\" style=\"max-width:560px\">\n        <div style=\"background:var(--bg-elev); border:1px solid var(--line); border-radius:16px; padding:20px 22px; font-size:13px; line-height:2; color:var(--text-2)\">\n          <div style=\"font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px\">映射表 · 真实机制 → 屏幕语言</div>\n          <b style=\"color:var(--text)\">上下文</b> → 案卷（电话里念给专家听的）<br>\n          <b style=\"color:var(--text)\">思考流</b> → 专家沉吟「正在想」<br>\n          <b style=\"color:var(--text)\">工具调用</b> → 「帮我翻一下 / 跑一下」（人话模式）<br>\n          <b style=\"color:var(--text)\">结果回传</b> → 「念给他听」（下一圈开始）<br>\n          <b style=\"color:var(--text)\">多步循环</b> → 转圈计数「第 N 圈」<br>\n          <b style=\"color:var(--text)\">待ち行列 / 插话</b> → 待ち行列等他忙完 / 凑到电话边补一句<br>\n          <b style=\"color:var(--text)\">上下文压力 / 压缩</b> → 案卷厚度 · 自动做摘要<br>\n          <div style=\"margin-top:12px; padding-top:12px; border-top:1px solid var(--line)\">\n            <b style=\"color:var(--text)\">刻意不画：</b>token、JSON、system prompt 原文、モデル路由、思考强度原理——每个概念只在它困扰用户的地方出现，不做教科书。\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">边界</span>原型的五屏叙事 + 导演视角 + 人话模式三层，均不占主界面：全部藏在 ⋯ 与设置里。</div>\n      </div>\n\n    </div>\n  </div>\n</div>\n"
+const PROTO_STYLE = "\n:root {\n  --bg:#0b0e14; --bg-elev:#12161f; --bg-card:#171c28; --bg-card-2:#1d2331;\n  --line:rgba(255,255,255,.08); --text:#e8ebf1; --text-2:#9aa3b2; --text-3:#7d8590;\n  --accent:#3b82f6; --accent-soft:rgba(59,130,246,.16); --accent-fill:#2563eb;\n  --green:#34c759; --orange:#ff9f0a; --red:#ff453a; --purple:#bf5af2; --info:#6aa6ff;\n  --font:-apple-system,BlinkMacSystemFont,\"SF Pro Text\",\"Noto Sans JP\",\"Helvetica Neue\",sans-serif;\n  --mono:ui-monospace,\"SF Mono\",Menlo,monospace;\n}\n* { box-sizing:border-box; margin:0; padding:0; }\nbody { background:#07090d; font-family:var(--font); color:var(--text); padding:36px 40px 60px; }\n.board { max-width:1720px; margin:0 auto; }\nh1 { font-size:26px; margin-bottom:6px; }\n.sub { color:var(--text-3); font-size:14px; margin-bottom:34px; }\n.sec { margin-bottom:44px; }\n.sec-title { font-size:17px; font-weight:700; margin-bottom:4px; }\n.sec-sub { font-size:13px; color:var(--text-3); margin-bottom:20px; }\n.row { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }\n.cell { display:flex; flex-direction:column; gap:12px; }\n.cap { font-size:13px; color:var(--text-2); line-height:1.6; max-width:300px; }\n.cap b { color:var(--text); }\n.cap .tag { display:inline-block; font-size:11px; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:1px 7px; margin-bottom:4px; }\n/* スマホ枠 */\n.phone { width:300px; height:630px; background:var(--bg); border:1px solid var(--line); border-radius:34px; overflow:hidden; position:relative; flex:none; box-shadow:0 18px 50px rgba(0,0,0,.5); }\n.notch { position:absolute; top:8px; left:50%; transform:translateX(-50%); width:88px; height:22px; background:#000; border-radius:11px; z-index:9; }\n.statusbar { height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 4px; font-size:11px; color:var(--text-2); }\n.screen { position:absolute; inset:40px 0 0; display:flex; flex-direction:column; }\n/* ヘッダー（ストーリーページ共通） */\n.story-head { padding:10px 18px 6px; display:flex; align-items:center; gap:8px; }\n.story-head .n { width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }\n.story-head .t { font-size:15px; font-weight:700; }\n.story-body { flex:1; padding:8px 18px 16px; display:flex; flex-direction:column; }\n.story-big { font-size:21px; font-weight:700; line-height:1.45; margin:6px 0 8px; }\n.story-desc { font-size:13px; color:var(--text-2); line-height:1.7; }\n.dots { display:flex; gap:6px; justify-content:center; padding:10px 0 14px; }\n.dots i { width:6px; height:6px; border-radius:3px; background:var(--line); }\n.dots i.on { background:var(--accent); width:16px; }\n/* 共通バブル */\n.bub-u { align-self:flex-end; max-width:82%; background:var(--accent-fill); color:#fff; border-radius:16px 16px 4px 16px; padding:9px 13px; font-size:13.5px; line-height:1.5; }\n.bub-b { align-self:flex-start; max-width:82%; background:var(--bg-card); border:1px solid var(--line); border-radius:16px 16px 16px 4px; padding:9px 13px; font-size:13.5px; line-height:1.5; color:var(--text); }\n.meta { font-size:10px; color:var(--text-3); margin:2px 10px 0 auto; }\n/* ============ 屏1：あなたが見るもの vs 背后 ============ */\n.vs-wrap { position:relative; margin-top:14px; flex:1; display:flex; flex-direction:column; }\n.vs-behind { flex:1; border:1.5px dashed rgba(59,130,246,.5); border-radius:14px; background:rgba(59,130,246,.05); padding:12px 12px 10px; margin-top:34px; position:relative; }\n.vs-behind::before { content:\"実際に裏で起きていること\"; position:absolute; top:-11px; left:12px; background:var(--bg); padding:0 8px; font-size:11px; color:var(--accent); }\n.vs-row { display:flex; gap:8px; align-items:center; background:var(--bg-card); border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-bottom:7px; font-size:12px; color:var(--text-2); }\n.vs-row .ic { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; flex:none; }\n.vs-tail { text-align:center; color:var(--text-3); font-size:16px; line-height:1; margin:2px 0 6px; }\n/* ============ 屏2：電話の向こうの盲目の専門家 ============ */\n.phone-demo { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; position:relative; }\n.cloud { width:120px; height:74px; border-radius:40px; background:var(--bg-card-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:30px; position:relative; z-index:2; }\n.cloud::after { content:\"考える · 話すだけ\"; position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); font-size:11px; color:var(--text-3); white-space:nowrap; }\n.wire { width:2px; height:52px; background:linear-gradient(var(--purple), transparent); margin:26px 0 8px; }\n.tel { font-size:46px; }\n.senses { display:flex; gap:14px; margin-top:26px; }\n.sense { text-align:center; font-size:11px; color:var(--text-3); }\n.sense .x { font-size:22px; position:relative; display:block; margin-bottom:4px; }\n.sense .x::after { content:\"✕\"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--red); font-size:22px; font-weight:700; }\n/* ============ 屏3：手と目 ============ */\n.hands { flex:1; display:flex; flex-direction:column; gap:10px; justify-content:center; }\n.hm { display:flex; gap:10px; }\n.hm .side { width:86px; flex:none; text-align:center; font-size:11px; color:var(--text-3); }\n.hm .side .em { font-size:26px; display:block; margin-bottom:3px; }\n.hm .bub-s { flex:1; background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:8px 11px; font-size:12.5px; line-height:1.55; color:var(--text-2); }\n.hm .bub-s b { color:var(--text); }\n.hm .bub-s.do { border-color:rgba(52,199,89,.35); }\n.hm .bub-s.do b { color:var(--green); }\n/* ============ 屏4：ループ ============ */\n.ring-wrap { flex:1; display:flex; align-items:center; justify-content:center; position:relative; }\n.ring { width:212px; height:212px; position:relative; }\n.ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.stn { position:absolute; width:64px; height:64px; margin:-32px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:12px; font-weight:600; color:var(--text-2); }\n.stn .em2 { font-size:17px; }\n.stn.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.18); box-shadow:0 0 24px rgba(59,130,246,.35); }\n.ring-ct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }\n.ring-ct .k { font-size:11px; color:var(--text-3); }\n.ring-ct .v { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }\n.ring-ct .v small { font-size:12px; font-weight:600; color:var(--text-3); }\n/* ============ 屏5：記録 ============ */\n.papers { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }\n.stack { position:relative; width:150px; }\n.p { height:15px; background:var(--bg-card-2); border:1px solid var(--line); border-radius:3px; margin-top:-4px; }\n.p.on { background:rgba(191,90,242,.25); border-color:rgba(191,90,242,.4); }\n.pressure { width:86%; }\n.pressure .lbl { display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-bottom:5px; }\n.pbar { height:8px; border-radius:4px; background:var(--bg-card); overflow:hidden; }\n.pbar i { display:block; height:100%; width:68%; border-radius:4px; background:linear-gradient(90deg, var(--accent), var(--orange)); }\n/* ============ ディレクター視点 ============ */\n.chat-mini { flex:1; overflow:hidden; padding:4px 14px; display:flex; flex-direction:column; gap:9px; }\n.engine-ov { position:absolute; left:0; right:0; bottom:0; background:var(--bg-elev); border-top:1px solid var(--line); border-radius:20px 20px 0 0; padding:12px 16px 14px; box-shadow:0 -14px 40px rgba(0,0,0,.5); }\n.eng-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }\n.eng-head .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s infinite; }\n@keyframes pulse { 0%,100% { opacity:1; transform:scale(1);} 50% { opacity:.4; transform:scale(.7);} }\n.eng-head .tt { font-size:14px; font-weight:700; }\n.eng-head .cnt { margin-left:auto; font-size:12px; color:var(--info); font-variant-numeric:tabular-nums; }\n.eng-body { display:flex; gap:14px; align-items:center; }\n.eng-ring { width:118px; height:118px; position:relative; flex:none; }\n.eng-ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.eng-acts { flex:1; min-width:0; }\n.eng-act { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:9px; font-size:12px; color:var(--text-2); }\n.eng-act.now { background:var(--accent-soft); color:var(--text); }\n.eng-act .st { margin-left:auto; font-size:10.5px; color:var(--text-3); }\n.eng-act.now .st { color:var(--info); }\n.st2 { position:absolute; width:46px; height:46px; margin:-23px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; color:var(--text-2); }\n.st2 .em2 { font-size:14px; }\n.st2.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.2); }\n/* ============ 人の言葉モード ============ */\n.toggle-row { display:flex; align-items:center; gap:8px; padding:10px 18px 4px; font-size:13px; color:var(--text-2); }\n.tg { margin-left:auto; width:42px; height:25px; border-radius:13px; background:var(--green); position:relative; }\n.tg::after { content:\"\"; position:absolute; top:2.5px; right:2.5px; width:20px; height:20px; border-radius:10px; background:#fff; }\n.toolcard { background:var(--bg-card); border:1px solid var(--line); border-radius:13px; padding:9px 12px; font-size:12.5px; }\n.toolcard .tc-h { display:flex; align-items:center; gap:7px; color:var(--text); font-weight:600; }\n.toolcard .tc-h .ic { font-size:14px; }\n.toolcard .tc-h .raw { margin-left:auto; font-size:10px; color:var(--text-3); font-family:var(--mono); }\n.toolcard .tc-b { margin-top:5px; color:var(--text-2); font-size:12px; line-height:1.55; }\n.arrow-note { text-align:center; color:var(--text-3); font-size:13px; margin:2px 0; }\n"
+const PROTO_HTML = "\n<div class=\"board\">\n  <h1>Harnessの可視化 · プロトタイプ</h1>\n  <div class=\"sub\">メタファーの軸：「電話の向こうの盲目の専門家」— モデルは考えて話すだけ。Harnessが手と目になる。2層構成：静的なストーリーページ（一度だけ説明）+ ディレクター視点（実行中に見る）。メイン画面を占有しない。</div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">第1層 · ストーリーページ「1回の会話はどう完成するか」</div>\n    <div class=\"sec-sub\">入口：⋯ メニュー最下部の1行「これはどう動いている？？」· 5画面を横スワイプ · 各画面に一言 + シンプルな図形を1つ · 数字は現在の会話の実データ</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">0</span><span class=\"t\">入口 · 既存画面は変更しない</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">⋯ メニューはそのまま、最下部に1行だけ追加：</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">🧠</span>モデル</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">🛡</span>操作権限</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(255,159,10,.15)\">📤</span>実行中の送信</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📊</span>統計</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📋</span>コピー会話をすべてコピー</div>\n              <div style=\"height:6px\"></div>\n              <div class=\"vs-row\" style=\"border-color:var(--accent); background:var(--accent-soft)\"><span class=\"ic\" style=\"background:rgba(59,130,246,.25)\">💡</span><b style=\"color:var(--text)\">これはどう動いている？？</b><span style=\"margin-left:auto; color:var(--accent)\">›</span></div>\n              <div class=\"story-desc\" style=\"margin-top:auto; line-height:1.7; padding-top:10px\">メイン画面、チャットの流れ、入力欄——<b style=\"color:var(--text)\">1ピクセルも動かさない</b>。<br>見なければ存在しないのと同じ。</div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">非侵入</span><b>変更は1つだけ：⋯ 下部の1行。</b>さらに小さくもできる：設定内の1行にする、初回利用の3日目だけ一度表示する案内バーにする。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">1</span><span class=\"t\">あなたが見るもの</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">このプロジェクトのテストがどのモジュールをカバーしているか見てください</div>\n              <div class=\"meta\">14:02</div>\n              <div class=\"vs-wrap\">\n                <div class=\"vs-behind\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>26秒考えて、依頼を分解した</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>5つのファイルを確認し、ディレクトリ構成を見た</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>2つのコマンドを実行し、すべてのテストを見つけた</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最後にあなたが見る文章を書いた</div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i class=\"on\"></i><i></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">導入</span><b>同じバブルの裏側で協働している。</b>ユーザーが今送った内容をメッセージ例にする、点線の枠で開く「舞台裏」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">2</span><span class=\"t\">電話の向こうの専門家</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">モデルとても賢いが、<br>見ることも触ることもできない</div>\n              <div class=\"phone-demo\">\n                <div class=\"cloud\">🧠</div>\n                <div class=\"wire\"></div>\n                <div class=\"tel\">☎️</div>\n                <div class=\"senses\">\n                  <div class=\"sense\"><span class=\"x\">👁</span>見えない<br>あなたのコンピューター</div>\n                  <div class=\"sense\"><span class=\"x\">✋</span>触れない<br>あなたのファイル</div>\n                  <div class=\"sense\"><span class=\"x\">🏃</span>自分では<br>手を動かせない</div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"margin-top:10px\">電話の向こうの専門家のように、話を聞いて答えることしかできない。それ以外は誰かが代わりに行う。</div>\n            </div>\n            <div class=\"dots\"><i></i><i class=\"on\"></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">中心となるメタファー</span><b>「盲目」がポイント。</b>これにより「なぜツールが必要か、なぜ仲介者がいるのか」が直感的に分かる。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">3</span><span class=\"t\">手と目</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">Harness 代わりに手を動かす</div>\n              <div class=\"hands\">\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>専門家の発言</div><div class=\"bub-s\">「私のために<b>確認して</b>テストディレクトリのファイルを見て」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">分かった。<b>確認中</b> · tests/ には 14個のファイル</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>専門家の発言</div><div class=\"bub-s\">「<b>実行して</b>テストして結果を教えて」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">分かった。<b>実行完了</b> · すべて成功、所要時間 8 秒</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>専門家の発言</div><div class=\"bub-s\">「分かった。まとめる」</div></div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i class=\"on\"></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">役割分担</span><b>対話形式で往復を見せる。</b>実際の仕組みに対応：モデルツール呼び出しを出力 → Harness 実行 → 結果を返す。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">4</span><span class=\"t\">ループ</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">1つのメッセージ<br>実際に7ループ回った</div>\n              <div class=\"ring-wrap\">\n                <div class=\"ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>考える</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>実行</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>確認</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再考</div>\n                  <div class=\"ring-ct\"><span class=\"k\">このメッセージ</span><span class=\"v\">7<small> ループ</small></span></div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"text-align:center\">一問一答ではない——考える→実行→確認→再考、<br>専門家が「報告できます」と言うまで。</div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i class=\"on\"></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">直感に反する点</span><b>ループ数は実数。</b>会話のstepイベントから取得、意外性はすべて「一問一答ではなかった」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">5</span><span class=\"t\">記録は読むほど厚くなる</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">一言話すたびに、<br>記録が少し厚くなる</div>\n              <div class=\"papers\">\n                <div class=\"stack\">\n                  <div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p\"></div><div class=\"p\"></div><div class=\"p\"></div>\n                </div>\n                <div class=\"pressure\">\n                  <div class=\"lbl\"><span>現在の記録の厚さ（コンテキスト）</span><span>68%</span></div>\n                  <div class=\"pbar\"><i></i></div>\n                  <div class=\"lbl\" style=\"margin-top:7px; line-height:1.5\"><span style=\"color:var(--text-2)\">厚くなると自動要約して続行する——<br>長い会話で時々「忘れる」理由でもある</span></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i></i><i class=\"on\"></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">まとめの呼応</span><b>を「コンテキストの負荷」に置き換えた記録の厚さに置き換える。</b>統計パネルの実数と照合する。</div>\n      </div>\n\n    </div>\n  </div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">実際の会話デモ · 数字はすべて会話イベントログから取得</div>\n    <div class=\"sec-sub\">同じユーザーの最近の実会話——同じ「舞台裏」分解、実データに置き換える（作業内容は隠しているフォルダーパスの詳細）</div>\n    <div class=\"row\">\n<div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">今日のDSH利用で行ったことのまとめ</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">今日使った内容と行ったことを100文字以内でまとめて。</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>回り <b>8 ループ</b>：考える→実行→確認→再考</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span><b>0個のファイルを確認した</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span><b>7個のコマンド</b>を実行。所要時間1分</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最後にあなたが見る文章を書いた</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>考える</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>実行</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>確認</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再考</div>\n                  <div class=\"ring-ct\"><span class=\"k\">このメッセージ</span><span class=\"v\" style=\"font-size:22px\">8<small> ループ</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>この会話の記録の厚さ</span><span>7%</span></div><div class=\"pbar\"><i style=\"width:7%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">簡単な依頼</span><b>「100文字以内」のまとめ、8ループ ループ。</b>一日分の記録を確認し、7個のコマンドを実行しを実行してから書き始めた——普通の人が考える一問一答、裏には完全な作業フローがある。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">店舗補充のロジックHTML入門解説</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">を使ってHTML入門解説を作る、私たちの店舗補充ロジックを解説する。自社の…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>回り <b>145 ループ</b>：考える→実行→確認→再考</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span><b>6個のファイルを確認した（補充方法論と需要予測の契約.md、店舗補充の業務案.md、補充ルールの判断表.md など）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span><b>65個のコマンド</b>を実行。所要時間35分</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最後にあなたが見る文章を書いた</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>考える</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>実行</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>確認</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再考</div>\n                  <div class=\"ring-ct\"><span class=\"k\">このメッセージ</span><span class=\"v\" style=\"font-size:22px\">145<small> ループ</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>この会話の記録の厚さ</span><span>19%</span></div><div class=\"pbar\"><i style=\"width:19%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">成果物を作る</span><b>担当者向けに解説ページを1枚作る。</b>一言の依頼 → 145 ループ · 35 分：業務案を読む、判断表を理解する、ページを書く、自己確認する。記録の厚さ 19%。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">方法の調査</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">まずP0とP1を実行して。終わったら過去データをもとに予測を更新できますか？実データを持ってきます…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>回り <b>163 ループ</b>：考える→実行→確認→再考</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span><b>6個のファイルを確認した（cli.py、backtest.py、grain.py など）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span><b>106個のコマンド</b>を実行。所要時間3.2時間</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最後にあなたが見る文章を書いた</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>考える</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>実行</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>確認</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再考</div>\n                  <div class=\"ring-ct\"><span class=\"k\">このメッセージ</span><span class=\"v\" style=\"font-size:22px\">163<small> ループ</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>この会話の記録の厚さ</span><span>45%</span></div><div class=\"pbar\"><i style=\"width:45%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">深掘り調査</span><b>長時間タスクの極限形。</b>163 ループ · 3.2 時間 · 106個のコマンド。専門家級の忍耐の価値が一目で分かる——時には待つ理由も分かる。</div>\n      </div>\n    </div>\n  </div>\n  <div class=\"sec\">\n    <div class=\"sec-title\">第2層 · ディレクター視点（実行中だけ見られる）</div>\n    <div class=\"sec-sub\">入口：実行中 ⋯ に表示される「今何をしているかを見る」· データはすべて既存イベントから取得（step / tool / reasoning）· 同時に解決する「何をしているか、止まっていないか」</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"chat-mini\">\n              <div class=\"bub-u\">さっきのスタイルをもう少し引き締めて</div>\n              <div class=\"meta\">14:32</div>\n              <div class=\"bub-b\" style=\"color:var(--text-3)\">処理中…</div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">⌨️</span>bash<span class=\"raw\">2.1s</span></div><div class=\"tc-b\">npm run build</div></div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\">web/style.css</div></div>\n            </div>\n            <div class=\"engine-ov\">\n              <div class=\"eng-head\"><span class=\"dot\"></span><span class=\"tt\">エンジン</span><span class=\"cnt\">第 5 ループ · ツール 12 回 · 思考 34s</span></div>\n              <div class=\"eng-body\">\n                <div class=\"eng-ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"94 251\" style=\"filter:drop-shadow(0 0 5px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 80 26 l 5 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"st2 lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>考える</div>\n                  <div class=\"st2\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>実行</div>\n                  <div class=\"st2\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>確認</div>\n                  <div class=\"st2\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再考</div>\n                </div>\n                <div class=\"eng-acts\">\n                  <div class=\"eng-act now\">🧠 考えています <span class=\"st\">経過 6s</span></div>\n                  <div class=\"eng-act\">📄 style.cssを確認した <span class=\"st\">0.3s</span></div>\n                  <div class=\"eng-act\">⌨️ ビルドコマンドを実行した <span class=\"st\">2.1s</span></div>\n                  <div class=\"eng-act\">🔁 前のループ：間隔を調整した <span class=\"st\"></span></div>\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">リアルタイム</span><b>現在の段階を点灯、進捗に合わせてリングを満たす。</b>ツール名の代わりに話し言葉で記録、ループ図そのものが正直な進捗表示になる。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">+</span><span class=\"t\">照合 · 人の言葉 ↔ 原文</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">解説ページの最後：あなたの<b style=\"color:var(--text)\">この実会話を</b>一度翻訳する（解説内だけで、実際のチャットは変更しない）</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>ファイルを確認した<span class=\"raw\">read · 0.3s</span></div><div class=\"tc-b\">web/app.js（4600 行）——スクロールとドロワー部分を確認した</div></div>\n              <div class=\"arrow-note\">↓ 同じカード、普段見ているもの</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\" style=\"font-family:var(--mono); font-size:11px\">web/app.js</div></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">浸透（任意）</span><b>解説ページ内だけで対照する。</b>実際のチャットは1ピクセルも動かさない；将来、人の言葉版を常設するなら設定の任意項目として検討する。</div>\n      </div>\n\n      <div class=\"cell\" style=\"max-width:560px\">\n        <div style=\"background:var(--bg-elev); border:1px solid var(--line); border-radius:16px; padding:20px 22px; font-size:13px; line-height:2; color:var(--text-2)\">\n          <div style=\"font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px\">対応表 · 実際の仕組み → 画面の言葉</div>\n          <b style=\"color:var(--text)\">コンテキスト</b> → 記録（電話で専門家に読み上げるもの）<br>\n          <b style=\"color:var(--text)\">思考の流れ</b> → 専門家が考え込む「考えている」<br>\n          <b style=\"color:var(--text)\">ツール呼び出し</b> → 「私のために確認して / 実行して」（人の言葉モード）<br>\n          <b style=\"color:var(--text)\">結果を返す</b> → 「読み上げて伝える」（次のループが始まる）<br>\n          <b style=\"color:var(--text)\">複数ステップのループ</b> → ループ数「第 N ループ」<br>\n          <b style=\"color:var(--text)\">待ち行列 / 割り込み</b> → 待ち行列が終わるのを待つ / 電話口で一言補足する<br>\n          <b style=\"color:var(--text)\">コンテキストの負荷 / 圧縮</b> → 記録の厚さ · 自動要約<br>\n          <div style=\"margin-top:12px; padding-top:12px; border-top:1px solid var(--line)\">\n            <b style=\"color:var(--text)\">意図的に描かないもの：</b>token、JSON、system prompt 原文、モデルルーティング、思考強度の原理——各概念はユーザーが困る場面でだけ登場させる、教科書にはしない。\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">境界</span>プロトタイプの5画面ストーリー + ディレクター視点 + 人の言葉モード3層、いずれもメイン画面を占有しない：すべて ⋯ と設定に隠す。</div>\n      </div>\n\n    </div>\n  </div>\n</div>\n"
 let protoView = null
 function showProto() {
   closeProto()
@@ -3676,7 +3681,7 @@ function showProto() {
   const wrap = el('div', 'proto-board')
   wrap.style.cssText = 'padding:36px 16px 60px;max-width:1720px;margin:0 auto'
   wrap.innerHTML = PROTO_HTML
-  const back = el('button', null, '✕ 閉じる原型')
+  const back = el('button', null, '✕ 試作画面を閉じる')
   back.type = 'button'
   back.style.cssText = 'position:sticky;top:10px;margin:0 0 14px auto;display:block;z-index:2;background:var(--bg-card-2);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:8px 16px;font-size:14px'
   back.onclick = () => { location.hash = '#/' }
@@ -3779,9 +3784,9 @@ async function renderNew() {
   wrap.textContent = ''
   if (!S.workspaces.length) await loadBase().catch(() => {})  // 作業フォルダー由 session/list 归并而来
   if (!S.workspaces.length) {
-    wrap.appendChild(el('div', 'empty-state', '还没有作業フォルダー\n先在桌面端打开 DSH 并添加一个文件夹，或等列表同步完成'))
+    wrap.appendChild(el('div', 'empty-state', '作業フォルダーがありません\nPC画面でフォルダーを追加するか、一覧の同期をお待ちください'))
     const btn = $('#start-btn')
-    if (btn) { btn.disabled = true; btn.textContent = '暂无可用作業フォルダー' }
+    if (btn) { btn.disabled = true; btn.textContent = '利用できる作業フォルダーがありません' }
     return
   }
   if (!newSel || !S.workspaces.find((w) => w.workspaceId === newSel)) newSel = S.workspaces[0].workspaceId
@@ -3801,7 +3806,7 @@ async function renderNew() {
   const prow = $('#preset-row')
   prow.textContent = ''
   if (!S.presets) {
-    prow.appendChild(el('span', 'sheet-note', '加载プリセット…'))
+    prow.appendChild(el('span', 'sheet-note', 'プリセットを読み込んでいます…'))
     rpc('agentPresets/list', {})
       .then((v) => {
         S.presets = (v.presets || []).map((p) => ({ id: p.id, name: p.name || p.id, isDefault: !!p.isDefault }))
@@ -3810,8 +3815,8 @@ async function renderNew() {
       .catch(() => { S.presets = { error: true }; if (location.hash === '#/new') renderNew() })
     return
   }
-  if (S.presets && S.presets.error) { prow.appendChild(el('span', 'sheet-note', 'プリセット加载失败，将使用默认プリセット')); return }
-  if (!S.presets.length) { prow.appendChild(el('span', 'sheet-note', '使用默认プリセット')); return }
+  if (S.presets && S.presets.error) { prow.appendChild(el('span', 'sheet-note', 'プリセットを読み込めないため、既定のプリセットを使います')); return }
+  if (!S.presets.length) { prow.appendChild(el('span', 'sheet-note', '既定のプリセットを使う')); return }
   if (!newPreset || !S.presets.find((p) => p.id === newPreset)) {
     const def = S.presets.find((p) => p.isDefault) || S.presets[0]
     newPreset = def.id
@@ -3900,14 +3905,14 @@ function createLocator(ws, fallback) {
 }
 function prettyCreateError(e) {
   const m = String((e && e.message) || e || '')
-  if (/absolute path/.test(m)) return '作業フォルダー路径无效，请重新作業フォルダーを選択'
-  if (/workspace\/not-found|not found/.test(m) && /workspace/i.test(m)) return '作業フォルダー已失效，请重新选择'
+  if (/absolute path/.test(m)) return '作業フォルダーのパスが無効です。選び直してください'
+  if (/workspace\/not-found|not found/.test(m) && /workspace/i.test(m)) return '作業フォルダーを利用できません。選び直してください'
   return m.replace(/^failed to create session "[^"]*":\s*(Error:\s*)?/, '')
 }
 async function startSession() {
   const text = $('#new-input').textContent.trim()
   const btn = $('#start-btn')
-  btn.disabled = true; btn.textContent = '创建中…'
+  btn.disabled = true; btn.textContent = '作成しています…'
   try {
     const ws = S.workspaces.find((w) => w.workspaceId === newSel)
     const loc = createLocator(ws, newSel)
@@ -3935,7 +3940,7 @@ async function startSession() {
       await sendPrompt(v.sessionId, text)
     }
   } catch (e) {
-    toast('创建失败：' + prettyCreateError(e), true)
+    toast('作成できませんでした：' + prettyCreateError(e), true)
   } finally {
     btn.disabled = false; btn.textContent = '会話を始める'
   }
@@ -3950,7 +3955,7 @@ async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
   const item = { kind: 'user', text: text || '', images: images && images.length ? images : null, time: Date.now(), pending: true, failed: false, rpcId }
   s.items.push(item)
   s.updatedAt = Date.now()
-  s.lastPreview = text || '[图片]'
+  s.lastPreview = text || '[画像]'
   prevDirtyMark(id)   // 预览现在停在提问文本上；回答落地（follow 折叠或后台补拉）后清除
   s.follow = true  // 自己发メッセージ：必然想看到最新
   ttsStop()   // 开口说话比听更重要：发メッセージ即停朗读
@@ -3990,7 +3995,7 @@ async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
     item.pending = false; item.failed = true
     if (S.current === id) renderChat(s)
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError')
-    toast(isTimeout ? '网络超时，未送达 — 点气泡上的重试' : '送信失败：' + e.message, true)
+    toast(isTimeout ? '通信がタイムアウトし、届いていません。メッセージの再試行をタップしてください' : '送信できませんでした：' + e.message, true)
   }
 }
 function retrySend(s, item) {
@@ -3999,7 +4004,7 @@ function retrySend(s, item) {
   sendPrompt(s.id, item.text, item.images, null, item.rpcId)  // 沿用原 id：宿主幂等去重，避免双发
 }
 async function cancelSession(id) {
-  try { await rpc('session/cancel', { request: { sessionId: id } }); toast('已送信停止 ■') } catch (e) { toast(e.message, true) }
+  try { await rpc('session/cancel', { request: { sessionId: id } }); toast('停止を送信しました ■') } catch (e) { toast(e.message, true) }
 }
 
 /* ================= 会話の設定面板（モデル / 操作の権限） ================= */
@@ -4080,8 +4085,8 @@ function refreshSheetViews(s) {
 /* 当前モデル的展示名（含强度），如「glm-5.3 · Max」 */
 function modelLabel(s) {
   const m = s.models
-  if (!m) return '加载中…'
-  if (m.error) return '加载失败'
+  if (!m) return '読み込み中…'
+  if (m.error) return '読み込めませんでした'
   const cur = s.modelSel || m.default
   if (!cur) return ''
   let name = cur.model, effort = ''
@@ -4105,22 +4110,22 @@ async function applyModel(s, group, mod, effort) {
     refreshSheetViews(s)
     vibrate(10)
     const label = mod.name + (effort ? ' · ' + effort : '')
-    toast(s.running ? '已切换：' + label + '（下一轮生效）' : '已切换：' + label)
-  } catch (e) { toast('切换失败：' + e.message, true) }
+    toast(s.running ? '変更しました：' + label + '（次の応答から適用）' : '変更しました：' + label)
+  } catch (e) { toast('変更できませんでした：' + e.message, true) }
 }
 async function applyPermission(s, opt) {
   try {
     // 与桌面端一致：走 commands/execute 远程调用派发 /permission 斜杠命令
     const v = await rpc('commands/execute', { agentId: s.id, line: '/permission ' + opt.value, submittedAttachments: [] })
     vibrate(10)
-    if (!v) { toast('命令不可用', true); return }
-    if (v.result && v.result.kind !== 'success') { toast(v.result.text || '切换失败', true); return }
+    if (!v) { toast('このコマンドは利用できません', true); return }
+    if (v.result && v.result.kind !== 'success') { toast(v.result.text || '変更できませんでした', true); return }
     // 修「提示成功但界面没动」：control 流不一定广播该投影，先乐观更新 ✓，
     // 再用 session/list（唯一事实源）对齐真实值
     if (s.permissions) { s.permissions = { ...s.permissions, currentValue: opt.value }; refreshSheetViews(s) }
-    toast('操作の権限已切换：' + permLabel(opt.value))
+    toast('操作の権限を変更しました：' + permLabel(opt.value))
     loadBaseSoon()
-  } catch (e) { toast('切换失败：' + e.message, true) }
+  } catch (e) { toast('変更できませんでした：' + e.message, true) }
 }
 let baseSoonTimer = null
 function loadBaseSoon() {
@@ -4149,25 +4154,25 @@ function renderSheet(s) {
   // ---- タスク一覧（有任务才出现；点开任务抽屉）----
   if (s.todos && s.todos.length) {
     const st = todoStats(s)
-    c.appendChild(valueRow('タスク一覧', st.done + '/' + st.total + ' 已完成', st.allDone ? '✓ 全部完成' : '进行中', () => { closeSheet(); openTaskSheet(s) }))
+    c.appendChild(valueRow('タスク一覧', st.done + '/' + st.total + '件完了', st.allDone ? '✓ すべて完了' : '進行中', () => { closeSheet(); openTaskSheet(s) }))
   }
   // ---- モデル ----
-  c.appendChild(valueRow('モデル', '切换モデル / 思考强度', modelLabel(s), () => openModelPanel(s)))
+  c.appendChild(valueRow('モデル', 'モデル・思考の強度を変更', modelLabel(s), () => openModelPanel(s)))
   // ---- 操作の権限 ----
   const perms = s.permissions
   const permName = () => {
-    if (!perms) return '加载中…'
+    if (!perms) return '読み込み中…'
     return permLabel(perms.currentValue)
   }
-  c.appendChild(valueRow('操作の権限', '文件与命令的边界', permName(), () => openPermPanel(s)))
+  c.appendChild(valueRow('操作の権限', 'ファイル操作とコマンド実行の範囲', permName(), () => openPermPanel(s)))
   // ---- 运行中送信 ----
-  c.appendChild(valueRow('运行中送信', '待ち行列或插话', busyEnter() === 'queue' ? '待ち行列' : '插话', () => openSendPanel(s)))
+  c.appendChild(valueRow('実行中の送信方法', '待ち行列または割り込み', busyEnter() === 'queue' ? '待ち行列' : '割り込み', () => openSendPanel(s)))
   // 自动朗读开关：直接切换（不需要二级面板）
   {
     const row = btnize(el('div', 'sheet-row'))
     const mid = el('div'); mid.style.minWidth = '0'; mid.style.flex = '1'
-    mid.appendChild(el('div', 'r-name', '自动朗读回答'))
-    mid.appendChild(el('div', 'r-desc', '每轮回答完成后自动语音播报（代码块跳过）'))
+    mid.appendChild(el('div', 'r-name', '回答を自動で読み上げ'))
+    mid.appendChild(el('div', 'r-desc', '回答が終わるたびに読み上げます（コードは省略）'))
     row.appendChild(mid)
     const sw = el('span', 'tg-sw' + (ttsAuto() ? ' on' : ''))
     sw.setAttribute('role', 'switch')
@@ -4179,44 +4184,44 @@ function renderSheet(s) {
       ttsSetAuto(nv)
       sw.classList.toggle('on', nv)
       sw.setAttribute('aria-checked', nv ? 'true' : 'false')
-      if (nv) { ttsWarm(); toast('已开启：回答完成后自动朗读') } else { ttsStop(); toast('已閉じる自动朗读') }
+      if (nv) { ttsWarm(); toast('回答終了後の自動読み上げをオンにしました') } else { ttsStop(); toast('自動読み上げをオフにしました') }
     }
     c.appendChild(row)
   }
   // ---- 统计（摘要值，点开看全量）----
   const p = s.ctxPressure
   const statVal = p && p.contextWindow ? Math.round(p.pressureTokens / p.contextWindow * 100) + '% · ' + fmtCtxTok(p.pressureTokens) : '—'
-  c.appendChild(valueRow('统计', '上下文 / tokens / 耗时', statVal, () => openStatsPanel(s)))
+  c.appendChild(valueRow('統計', 'コンテキスト・トークン・所要時間', statVal, () => openStatsPanel(s)))
   // ---- コピー全部对话（直接动作）----
   const copyRow = btnize(el('div', 'sheet-row'))
   const cm = el('div'); cm.style.minWidth = '0'; cm.style.flex = '1'
-  cm.appendChild(el('div', 'r-name', 'コピー全部对话'))
-  cm.appendChild(el('div', 'r-desc', '导出为纯文本，粘贴到任何地方'))
+  cm.appendChild(el('div', 'r-name', '会話全体をコピー'))
+  cm.appendChild(el('div', 'r-desc', 'テキストとしてコピーし、ほかの場所へ貼り付けできます'))
   copyRow.appendChild(cm)
   copyRow.onclick = () => {
     copyText(sessionText(s), (ok) => {
       vibrate(10)
-      if (ok) toast('已コピー ' + s.items.filter((i) => i.kind === 'user' || i.kind === 'assistant').length + ' 条メッセージ')
-      else toast('コピー失败，请重试', true)
+      if (ok) toast('コピーしました：' + s.items.filter((i) => i.kind === 'user' || i.kind === 'assistant').length + '件のメッセージ')
+      else toast('コピーできませんでした。再試行してください', true)
     })
   }
   c.appendChild(copyRow)
   // ---- 会話：名前を変更 / 会話を分岐 / アーカイブ（原只在侧栏会話菜单里有，正文里也要能直接做）----
   c.appendChild(el('div', 'sheet-group', '会話'))
   const t = s.title || ''
-  c.appendChild(valueRow('名前を変更', '改当前会話的标题', t.length > 14 ? t.slice(0, 14) + '…' : (t || '未命名'), () => openRenamePanel(s)))
-  c.appendChild(valueRow('会話を分岐', '从最近完成的轮コピー出新しい会話', '', async () => {
+  c.appendChild(valueRow('名前を変更', 'この会話のタイトルを変更', t.length > 14 ? t.slice(0, 14) + '…' : (t || '名前なし'), () => openRenamePanel(s)))
+  c.appendChild(valueRow('会話を分岐', '最後に完了した応答から新しい会話へコピー', '', async () => {
     vibrate(8)
     try {
       closeSheet()
-      toast('正在会話を分岐…')
+      toast('会話を分岐しています…')
       const v = await rpc('session/fork', { request: { sessionId: s.id } })
-      toast('已会話を分岐 ✓ 正在打开')
+      toast('会話を分岐しました ✓ 開いています')
       location.hash = '#/s/' + v.sessionId
       flushForkTail(v.sessionId)
-    } catch (e) { toast('会話を分岐失败：' + e.message, true) }
+    } catch (e) { toast('会話を分岐できませんでした：' + e.message, true) }
   }))
-  c.appendChild(valueRow('アーカイブ', '从列表移除，可在桌面端恢复', '', async () => {
+  c.appendChild(valueRow('アーカイブ', '一覧から外します。PC画面で復元できます', '', async () => {
     vibrate(8)
     try {
       const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } })
@@ -4225,11 +4230,11 @@ function renderSheet(s) {
       closeSheet()
       location.hash = '#/'   // 当前会話没了：回主页
       renderList()
-      toast('已アーカイブ（可在桌面端恢复）')
-    } catch (e) { toast('アーカイブ失败：' + e.message, true) }
+      toast('アーカイブしました（PC画面で復元できます）')
+    } catch (e) { toast('アーカイブできませんでした：' + e.message, true) }
   }))
-  c.appendChild(el('div', 'sheet-note', '点带 › 的行进入对应设置。'))
-  c.appendChild(el('div', 'sheet-note', 'DSH PWA v1.13.0'))
+  c.appendChild(el('div', 'sheet-note', '› のある項目をタップすると設定を開けます。'))
+  c.appendChild(el('div', 'sheet-note', 'DSH PWA 日本語版 v1.0.1'))
 }
 /* 名前を変更：⋯ → 会話 → 名前を変更，就地编辑保存 */
 function openRenamePanel(s) {
@@ -4238,11 +4243,11 @@ function openRenamePanel(s) {
     const box = el('div', 'ren-box')
     box.contentEditable = 'plaintext-only'
     if (box.contentEditable !== 'plaintext-only') box.contentEditable = 'true'
-    box.dataset.ph = '输入新しいタイトル'
+    box.dataset.ph = '新しいタイトルを入力'
     box.textContent = s.title || ''
     const save = async () => {
       const t = editableText(box).replace(/\n+/g, ' ').trim()
-      if (!t) { toast('标题不能为空', true); return }
+      if (!t) { toast('タイトルを入力してください', true); return }
       vibrate(8)
       try {
         const v = await rpc('session/rename', { request: { sessionId: s.id, title: t } })
@@ -4251,14 +4256,14 @@ function openRenamePanel(s) {
         closeSubPanel(); closeSheet()
         renderListSoon()
         renderChat(s, true)   // 顶部标题/列表再読み込み
-        toast('已名前を変更 ✓')
-      } catch (e) { toast('名前を変更失败：' + e.message, true) }
+        toast('名前を変更しました ✓')
+      } catch (e) { toast('名前を変更できませんでした：' + e.message, true) }
     }
     const btn = el('button', 'ren-save', '保存')
     btn.type = 'button'
     btn.onclick = save
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save() } })
-    body.appendChild(el('div', 'sheet-note', '标题用于会話列表与桌面端同步显示。'))
+    body.appendChild(el('div', 'sheet-note', 'タイトルは会話一覧とPC画面に共通で表示されます。'))
     body.appendChild(box)
     body.appendChild(btn)
     setTimeout(() => { box.focus(); document.getSelection().selectAllChildren(box) }, 180)   // 等面板滑入再聚焦全选
@@ -4276,12 +4281,12 @@ function renderModelPanel(s) {
   body.classList.add('mp-fit')   // 外层不再滚动：两栏各自滚（右栏内容短时触摸才不会把整块带着走）
   body.textContent = ''
   const m = s.models
-  if (!m) { body.appendChild(el('div', 'sheet-note', '加载中…')); return }
+  if (!m) { body.appendChild(el('div', 'sheet-note', '読み込み中…')); return }
   if (m.error) {
-    const note = el('div', 'sheet-note', '加载失败：' + m.error)
-    const retry = el('button', 'sheet-retry', '重试')
+    const note = el('div', 'sheet-note', '読み込めませんでした：' + m.error)
+    const retry = el('button', 'sheet-retry', '再試行')
     retry.type = 'button'
-    retry.onclick = () => { s.models = null; loadModels(s); body.appendChild(el('div', 'sheet-note', '加载中…')) }
+    retry.onclick = () => { s.models = null; loadModels(s); body.appendChild(el('div', 'sheet-note', '読み込み中…')) }
     note.appendChild(retry)
     body.appendChild(note)
     return
@@ -4298,7 +4303,7 @@ function renderModelPickerInto(body, m, cur, apply, s) {
   if (s && s.running && s.modelLastUsed) {
     const lu = s.modelLastUsed
     if (lu.provider !== cur.provider || lu.model !== cur.model || lu.reasoningEffort !== cur.reasoningEffort) {
-      body.appendChild(el('div', 'sheet-note', '本轮仍在用 ' + modelNameOf(s, lu) + '，下一条メッセージ起才用新的选择'))
+      body.appendChild(el('div', 'sheet-note', '現在の応答では' + modelNameOf(s, lu) + 'を使用中です。新しい選択は次のメッセージから適用します'))
     }
   }
   // 选中モデル有强度才分两栏；没有就整栏只放モデル列表（右栏根本不出现）
@@ -4319,7 +4324,7 @@ function renderModelPickerInto(body, m, cur, apply, s) {
       const nm = el('span', 'mp-name', mod.name)
       row.appendChild(nm)
       const hasEfs = !!(mod.reasoning && mod.reasoning.efforts && mod.reasoning.efforts.length)
-      if (!hasEfs) row.appendChild(el('span', 'mp-tag', '无强度'))
+      if (!hasEfs) row.appendChild(el('span', 'mp-tag', '強度の設定なし'))
       row.onclick = () => {
         if (isCur) return
         vibrate(8)
@@ -4349,7 +4354,7 @@ function renderMpRight(right, m, cur, apply) {
     for (const g of m.groups || []) for (const mod of g.models || []) if (g.id === cur.provider && mod.id === cur.model) return g
     return null
   })()
-  right.appendChild(el('div', 'mp-grp', '思考强度' + (curMod ? ' · ' + curMod.name : '')))
+  right.appendChild(el('div', 'mp-grp', '思考の強度' + (curMod ? ' · ' + curMod.name : '')))
   if (curMod && curMod.description) right.appendChild(el('div', 'mp-desc', curMod.description))
   const efs = curMod && curMod.reasoning && curMod.reasoning.efforts
   if (efs && efs.length) {
@@ -4437,7 +4442,7 @@ function mkQRow(s, it, numEl, close) {
   const rk = itemKey(it)
   if (rk) row.dataset.k = rk   // 与对话流里的条目同键：打开清单时按它定位「当前所在的问题」
   const no = el('span', 'qi', numEl)
-  const txt = el('span', 'qt', it.text || '[图片]')
+  const txt = el('span', 'qt', it.text || '[画像]')
   // 日期 + 时间：跨天/跨年的问题也能一眼分辨
   const tm = el('span', 'qm', fmtTime(it.time))   // fmtTime 自带 今天/昨天/M月D日/[年份] 分层
   row.append(no, txt, tm)
@@ -4513,15 +4518,15 @@ function qPanelRefreshFoot() {
   if (!qPanel) return
   if (qPanel.empty) {
     qPanel.spin.style.display = 'none'
-    qPanel.label.textContent = '这个对话里还没有你发过的メッセージ'
+    qPanel.label.textContent = 'この会話にはまだ自分が送ったメッセージがありません'
     return
   }
   if (qPanel.done) {
     qPanel.spin.style.display = 'none'
-    qPanel.label.textContent = qPanel.complete ? '共 ' + qPanel.total + ' 条 · 已全部加载' : '共 ' + qPanel.total + ' 条（还有更早的没取完）'
+    qPanel.label.textContent = qPanel.complete ? '合計' + qPanel.total + '件 · すべて読み込み済み' : '合計' + qPanel.total + '件（以前のメッセージを読み込み中）'
   } else {
     qPanel.spin.style.display = ''
-    qPanel.label.textContent = qPanel.total ? '正在加载更早的提问…（已显示 ' + qPanel.total + ' 条）' : '正在加载全部提问…'
+    qPanel.label.textContent = qPanel.total ? '以前の質問を読み込んでいます…（表示済み' + qPanel.total + '件）' : 'すべての質問を読み込んでいます…'
   }
 }
 function qPanelAppend(s, freshAsc) {
@@ -4750,7 +4755,7 @@ async function flushForkTail(childId) {
     if (!inherited) return false
     // 2) marker 入队唤醒（旧尾巴在它前面，marker 不会被先消费）
     // 注意：队列广播的 source 是空对象（无 requestId），只能按文本认领——所以文本必须够独特
-    const markerText = '（会話を分岐初始化 ' + Date.now().toString(36) + '，请忽略）'
+    const markerText = '（会話の分岐を初期化しています ' + Date.now().toString(36) + '。このメッセージは無視してください）'
     await rpc('session/prompt', { request: { requestId: 'fork-flush-' + Date.now(), sessionId: childId, mode: 'queue', content: [{ type: 'text', text: markerText }], clientTimeZone: tz() } })
     // 3) marker 进队后马上摘掉（它排在旧尾巴后面，摘除窗口足够）
     for (let i = 0; i < 24; i++) {
@@ -4773,7 +4778,7 @@ function showForkConfirm(anchorEl, s, item) {
   const old = document.querySelector('.fork-pop')
   if (old) old.remove()
   const pop = el('div', 'fork-pop')
-  const y = el('button', 'fp-y', '⑂ 从这里会話を分岐')
+  const y = el('button', 'fp-y', '⑂ ここから会話を分岐')
   y.type = 'button'
   const n = el('button', 'fp-n', 'キャンセル')
   n.type = 'button'
@@ -4795,13 +4800,13 @@ function showForkConfirm(anchorEl, s, item) {
       // 2) 标题加 (n) 后缀（移植桌面 increasedForkTitle；失败不阻断打开）
       try { await rpc('session/rename', { request: { sessionId: childId, title: increasedForkTitle(sessTitle(s)) } }) } catch (e2) {}
       vibrate(12)
-      toast('已会話を分岐：新しい会話「' + increasedForkTitle(sessTitle(s)) + '」')
+      toast('会話を分岐しました：新しい会話「' + increasedForkTitle(sessTitle(s)) + '」')
       loadBase()
       location.hash = '#/s/' + childId   // 桌面行为：创建后直接打开
       flushForkTail(childId)   // 宿主的 cut 会把边界轮之后的收件箱尾巴也切给子会話，冲掉（见函数注释）
     } catch (e) {
       const msg = String((e && e.message) || e)
-      toast(/fork-unavailable|not completed|no completed turn/i.test(msg) ? '这一轮还没完成，完成后再会話を分岐' : '会話を分岐失败：' + msg, true)
+      toast(/fork-unavailable|not completed|no completed turn/i.test(msg) ? 'この応答はまだ完了していません。完了後に分岐してください' : '会話を分岐できませんでした：' + msg, true)
     }
   }
 }
@@ -4815,29 +4820,29 @@ function openTurnStatsSheet(s, item, liveTs) {
   const durS = ts.durMs > 0 ? (ts.durMs / 1000).toFixed(1) + ' 秒' : '—'
   const cacheHit = agg.has && agg.total > agg.output ? Math.round(agg.cacheRead / (agg.total - agg.output) * 1000) / 10 + '%' : '—'
   const speed = ts.speed ? Math.round(ts.speed) + ' tok/s' : '—'   // 解码速度：Σ输出 ÷ Σ解码时长（桌面同款）
-  $('#ts-title').textContent = '第 ' + ts.turn + ' 轮统计' + (ts.live ? ' · 进行中' : '')
+  $('#ts-title').textContent = '第 ' + ts.turn + '回目の統計' + (ts.live ? ' · 進行中' : '')
   const body = $('#ts-body')
   body.textContent = ''
   const mk = (label, val) => { const d = el('div', 'ts-kv'); d.appendChild(el('div', 'k', label)); d.appendChild(el('div', 'v', val)); return d }
-  const g1 = el('div', 'ts-grp', '消耗')
+  const g1 = el('div', 'ts-grp', '使用量')
   const grid1 = el('div', 'kv-grid')
   if (agg.has) {
-    grid1.append(mk('输入（新增）', fmtTok(agg.input)), mk('缓存命中', cacheHit), mk('缓存读取', fmtTok(agg.cacheRead)), mk('缓存写入', fmtTok(agg.cacheWrite)), mk('输出', fmtTok(agg.output)))
-    if (agg.reasoning > 0) grid1.append(mk('其中思考', fmtTok(agg.reasoning)))
-    if (agg.total > 0) grid1.append(mk('总上下文', fmtTok(agg.total)))
-  } else grid1.append(mk('（无 usage 数据）', '—'))
+    grid1.append(mk('入力（新規）', fmtTok(agg.input)), mk('キャッシュ利用', cacheHit), mk('キャッシュ読み取り', fmtTok(agg.cacheRead)), mk('キャッシュ書き込み', fmtTok(agg.cacheWrite)), mk('出力', fmtTok(agg.output)))
+    if (agg.reasoning > 0) grid1.append(mk('思考に使用', fmtTok(agg.reasoning)))
+    if (agg.total > 0) grid1.append(mk('コンテキスト全体', fmtTok(agg.total)))
+  } else grid1.append(mk('（使用量データなし）', '—'))
   g1.appendChild(grid1)
-  const g2 = el('div', 'ts-grp', '耗时')
+  const g2 = el('div', 'ts-grp', '所要時間')
   const grid2 = el('div', 'kv-grid')
-  grid2.append(mk('总时长', durS), mk('TTFT（首 token）', sec(tm.ttftMs)), mk('解码时长', sec(tm.decodeMs)), mk('速度', speed))
+  grid2.append(mk('合計時間', durS), mk('TTFT（最初のトークン）', sec(tm.ttftMs)), mk('生成時間', sec(tm.decodeMs)), mk('速度', speed))
   g2.appendChild(grid2)
   const g3 = el('div', 'ts-grp', 'モデル')
   const route = el('div', 'ts-route')
   route.appendChild(el('span', 'ri', 'AI'))
-  route.appendChild(document.createTextNode((s.modelSel && s.modelSel.model) || s.agentPreset || '默认'))
+  route.appendChild(document.createTextNode((s.modelSel && s.modelSel.model) || s.agentPreset || '既定'))
   g3.appendChild(route)
   body.append(g1, g2, g3)
-  if (ts.live) body.appendChild(el('div', 'sheet-note', '本轮还在跑：时长按秒走；token / 速度每完成一步结算一次（宿主只在步结束时给 usage）。'))
+  if (ts.live) body.appendChild(el('div', 'sheet-note', '応答中は経過時間を毎秒更新します。トークン数と速度は、各ステップが終わって使用量を受信したときに更新します。'))
   ovSet('ts-ov', true)
 }
 /* ---- 操作の権限面板 ---- */
@@ -4849,12 +4854,12 @@ function renderPermPanel(s) {
   if (!body) return
   body.textContent = ''
   const perms = s.permissions
-  if (!perms) body.appendChild(el('div', 'sheet-note', '暂不可用（会話历史加载后显示）'))
+  if (!perms) body.appendChild(el('div', 'sheet-note', '現在は利用できません（会話履歴の読み込み後に表示）'))
   else for (const opt of perms.options) body.appendChild(permRow(s, opt, perms.currentValue))
 }
 /* ---- 运行中送信面板 ---- */
 function openSendPanel(s) {
-  openSubPanel('send', '运行中送信', () => renderSendPanel(s))
+  openSubPanel('send', '実行中の送信方法', () => renderSendPanel(s))
 }
 function renderSendPanel(s) {
   const body = $('#sub-body')
@@ -4862,16 +4867,16 @@ function renderSendPanel(s) {
   body.textContent = ''
   const modeRow = el('div', 'mode-row')
   for (const m of ['queue', 'steer']) {
-    const chip = btnize(el('span', 'chip' + (busyEnter() === m ? ' sel' : ''), m === 'queue' ? '待ち行列（既定）' : '插话'))
+    const chip = btnize(el('span', 'chip' + (busyEnter() === m ? ' sel' : ''), m === 'queue' ? '待ち行列（既定）' : '割り込み'))
     chip.onclick = () => { vibrate(8); setBusyEnter(m); refreshSheetViews(s) }
     modeRow.appendChild(chip)
   }
   body.appendChild(modeRow)
-  body.appendChild(el('div', 'sheet-note', '运行中点送信按此设置投递；长按送信按钮可本次反向。待ち行列后可点输入框上方的 chip 编辑、转插话或删除。'))
+  body.appendChild(el('div', 'sheet-note', '実行中はこの設定に従って送信します。送信ボタンを長押しすると、今回だけ別の方法を使えます。待ち行列の項目は入力欄の上で編集・割り込みへの変更・削除ができます。'))
 }
 /* ---- 统计面板（原 renderStatsSection 的全部内容）---- */
 function openStatsPanel(s) {
-  openSubPanel('stats', '统计', () => renderStatsPanel(s))
+  openSubPanel('stats', '統計', () => renderStatsPanel(s))
 }
 function renderStatsPanel(s) {
   const body = $('#sub-body')
@@ -4883,11 +4888,11 @@ function renderStatsPanel(s) {
 /* 统计区：上下文环 + 构成 + 累计 + 运行统计（noHeader=放在二级面板里时省掉小节头） */
 function renderStatsSection(s, c, noHeader) {
   if (!noHeader) {
-    const stSec = el('div', 'sheet-sec'); stSec.appendChild(icon('bolt', 14)); stSec.appendChild(el('span', null, '统计'))
+    const stSec = el('div', 'sheet-sec'); stSec.appendChild(icon('bolt', 14)); stSec.appendChild(el('span', null, '統計'))
     c.appendChild(stSec)
   }
   const p = s.ctxPressure
-  if (!p || !p.contextWindow) { c.appendChild(el('div', 'sheet-note', '暂无统计（会話加载后显示）')); return }
+  if (!p || !p.contextWindow) { c.appendChild(el('div', 'sheet-note', '統計はまだありません（会話の読み込み後に表示）')); return }
   const pct = Math.max(0, Math.min(100, Math.round(p.pressureTokens / p.contextWindow * 100)))
   const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--orange)' : 'var(--green)'
   const circumference = 2 * Math.PI * 36
@@ -4903,7 +4908,7 @@ function renderStatsSection(s, c, noHeader) {
   const big = el('div', 'big')
   big.innerHTML = esc(fmtCtxTok(p.pressureTokens)) + ' <small>/ ' + fmtCtxTok(p.contextWindow) + ' tokens</small>'
   num.appendChild(big)
-  num.appendChild(el('div', 'cap', p.projectedTokens != null ? '下轮预估 ' + fmtCtxTok(p.projectedTokens) + ' · 剩余约 ' + fmtCtxTok(Math.max(0, p.contextWindow - p.pressureTokens)) : ''))
+  num.appendChild(el('div', 'cap', p.projectedTokens != null ? '次の応答の推定 ' + fmtCtxTok(p.projectedTokens) + ' · 残り約 ' + fmtCtxTok(Math.max(0, p.contextWindow - p.pressureTokens)) : ''))
   const brk = s.ctxBreakdown
   if (brk && brk.messageTokens != null) {
     const track = el('div', 'brkd')
@@ -4911,7 +4916,7 @@ function renderStatsSection(s, c, noHeader) {
       const i2 = el('i'); i2.style.flex = String(Math.max(1, v2)); i2.style.background = col; track.appendChild(i2)
     }
     num.appendChild(track)
-    num.appendChild(el('div', 'cap', 'メッセージ ' + fmtCtxTok(brk.messageTokens) + ' · 工具 ' + fmtCtxTok(brk.toolsTokens || 0) + ' · 系统 ' + fmtCtxTok(brk.systemTokens || 0)))
+    num.appendChild(el('div', 'cap', 'メッセージ ' + fmtCtxTok(brk.messageTokens) + ' · ツール ' + fmtCtxTok(brk.toolsTokens || 0) + ' · システム ' + fmtCtxTok(brk.systemTokens || 0)))
   }
   hero.appendChild(num)
   c.appendChild(hero)
@@ -4929,17 +4934,17 @@ function renderStatsSection(s, c, noHeader) {
   }
   const tu = s.tokenUsage || {}
   c.appendChild(kvGrid([
-    ['未缓存输入', fmtTok(tu.uncachedInputTokens)],
-    ['输出', fmtTok(tu.outputTokens)],
-    ['缓存命中', fmtTok(tu.cacheReadTokens)],
+    ['キャッシュを使わない入力', fmtTok(tu.uncachedInputTokens)],
+    ['出力', fmtTok(tu.outputTokens)],
+    ['キャッシュ利用', fmtTok(tu.cacheReadTokens)],
     ['モデル', (s.modelSel && (s.modelSel.model + (s.modelSel.reasoningEffort ? ' · ' + s.modelSel.reasoningEffort : ''))) || '—'],
   ]))
   const ss = s.sessionStats || {}
   c.appendChild(kvGrid([
-    ['对话轮数', ss.turns != null ? String(ss.turns) : '—'],
-    ['モデル调用', ss.steps != null ? String(ss.steps) : '—', ss.steps != null ? '步' : ''],
-    ['LLM 时间', fmtDur(ss.llmMs)],
-    ['工具时间', fmtDur(ss.toolMs)],
+    ['応答回数', ss.turns != null ? String(ss.turns) : '—'],
+    ['モデル呼び出し', ss.steps != null ? String(ss.steps) : '—', ss.steps != null ? 'ステップ' : ''],
+    ['LLMの所要時間', fmtDur(ss.llmMs)],
+    ['ツールの所要時間', fmtDur(ss.toolMs)],
     ['平均 TTFT', ss.ttftSteps > 0 ? (ss.ttftMs / ss.ttftSteps / 1000).toFixed(1) + 's' : '—'],
     ['平均速度', ss.decodeMs > 0 ? Math.round(ss.decodeTokens / (ss.decodeMs / 1000)) + ' tok/s' : '—'],
   ]))
@@ -4954,9 +4959,9 @@ function renderSheetSoon(s) {
 function sessionText(s) {
   const lines = []
   for (const it of s.items) {
-    if (it.kind === 'user') lines.push('我：' + it.text)
+    if (it.kind === 'user') lines.push('自分：' + it.text)
     else if (it.kind === 'assistant') lines.push(it.text)
-    else if (it.kind === 'tool') lines.push('[工具 ' + it.name + '] ' + toolSummary(it))
+    else if (it.kind === 'tool') lines.push('[ツール ' + it.name + '] ' + toolSummary(it))
     else if (it.kind === 'sys') lines.push(it.text)
   }
   return lines.filter(Boolean).join('\n\n')
@@ -4967,7 +4972,7 @@ function sessionText(s) {
 const PERM_LABEL = {
   'read-only': ['読み取り専用', 'ファイルの読み取りと検索のみ。変更はできません。'],
   'workspace-write': ['作業フォルダー内の変更', '作業フォルダー内の変更・コマンド実行を許可します。'],
-  'danger-full-access': ['すべての操作を許可', '作業フォルダー外の変更や危険なコマンドも許可します。'],
+  'danger-full-access': ['フルアクセス', 'フォルダー外も含め、確認なしで変更・実行を許可。'],
 }
 const permLabel = (v) => (PERM_LABEL[v] ? PERM_LABEL[v][0] : v)
 const permDesc = (opt) => (PERM_LABEL[opt.value] ? PERM_LABEL[opt.value][1] : (opt.description || ''))
@@ -5018,7 +5023,7 @@ function initPtr(sc) {
     if (!pulling) return
     if (dy > 12 && sc.scrollTop <= 0) {
       ind.classList.add('show')
-      ind.textContent = dy > 72 ? '松开再読み込み' : '下拉再読み込み…'
+      ind.textContent = dy > 72 ? '指を離して再読み込み' : '下に引いて再読み込み…'
     } else if (dy <= 4) ind.classList.remove('show')
   }, { passive: true })
   const finish = (e) => {
@@ -5051,7 +5056,7 @@ function applyTheme(t) {
   if (btn) {
     btn.textContent = ''
     btn.appendChild(icon(t === 'light' ? 'moon' : 'sun', 20))
-    btn.setAttribute('aria-label', t === 'light' ? '切换为深色' : '切换为浅色')
+    btn.setAttribute('aria-label', t === 'light' ? '暗いテーマに切り替え' : '明るいテーマに切り替え')
   }
 }
 function toggleTheme() {
@@ -5174,35 +5179,35 @@ function buildShell() {
     </div>
   </div>
   <div class="sheet-overlay" id="ts-ov" aria-hidden="true">
-    <div class="sheet q-sheet" role="dialog" aria-label="本轮统计">
+    <div class="sheet q-sheet" role="dialog" aria-label="今回の統計">
       <div class="grabber"></div>
       <div class="task-head">
-        <span class="task-title" id="ts-title">本轮统计</span>
+        <span class="task-title" id="ts-title">今回の統計</span>
         <button class="think-close" id="ts-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <div class="sheet-scroll" id="ts-body" style="padding:2px 16px 18px"></div>
     </div>
   </div>
   <div class="sheet-overlay" id="quote-ov" aria-hidden="true">
-    <div class="sheet q-sheet" role="dialog" aria-label="引用详情">
+    <div class="sheet q-sheet" role="dialog" aria-label="引用の詳細">
       <div class="grabber"></div>
       <div class="task-head">
         <span class="task-title" id="quote-title">引用</span>
         <button class="think-close" id="quote-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <pre class="quote-full" id="quote-full"></pre>
-      <div class="note-in" id="quote-note" contenteditable data-ph="给这条引用加一句注解（可选）…"></div>
-      <div class="qbtns"><button class="del" id="quote-del" type="button">删除引用</button><button class="ok" id="quote-save" type="button">保存注解</button></div>
+      <div class="note-in" id="quote-note" contenteditable data-ph="この引用に注釈を追加（任意）…"></div>
+      <div class="qbtns"><button class="del" id="quote-del" type="button">引用を削除</button><button class="ok" id="quote-save" type="button">注釈を保存</button></div>
     </div>
   </div>
   <div class="sheet-overlay" id="q-ov" aria-hidden="true">
     <div class="sheet q-sheet" id="q-sheet" role="dialog" aria-label="待ち行列メッセージ管理">
       <div class="grabber"></div>
       <div class="sheet-scroll q-body" id="q-body">
-        <div class="act-row" id="q-a-edit" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>内容を編集<span class="sub">修改这段待ち行列的文本</span></div>
-        <div class="act-row" id="q-a-steer" role="button" tabindex="0"><span class="ic" data-act-ic="bolt"></span>立即插话<span class="sub">不等本轮结束，马上生效</span></div>
-        <div class="act-row danger" id="q-a-del" role="button" tabindex="0"><span class="ic" data-act-ic="trash"></span>删除<span class="sub">キャンセル这条待ち行列</span></div>
-        <div class="q-edit-box" id="q-edit-box" contenteditable aria-label="编辑待ち行列内容"></div>
+        <div class="act-row" id="q-a-edit" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>内容を編集<span class="sub">この待ち行列の文章を編集</span></div>
+        <div class="act-row" id="q-a-steer" role="button" tabindex="0"><span class="ic" data-act-ic="bolt"></span>すぐに割り込む<span class="sub">このループの終了を待たず、すぐ反映</span></div>
+        <div class="act-row danger" id="q-a-del" role="button" tabindex="0"><span class="ic" data-act-ic="trash"></span>削除<span class="sub">この待ち行列をキャンセル</span></div>
+        <div class="q-edit-box" id="q-edit-box" contenteditable aria-label="待ち行列の内容を編集"></div>
       </div>
       <button class="q-save" id="q-save" type="button">変更を保存</button>
     </div>
@@ -5212,10 +5217,10 @@ function buildShell() {
       <div class="grabber"></div>
       <div class="sess-menu-title" id="sess-menu-title"></div>
       <div class="sheet-scroll q-body">
-        <div class="act-row" id="sess-a-rename" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>名前を変更<span class="sub">改这个会話的标题</span></div>
-        <div class="act-row" id="sess-a-fork" role="button" tabindex="0"><span class="ic" data-act-ic="fork"></span>会話を分岐<span class="sub">コピー到新しい会話继续</span></div>
-        <div class="act-row" id="sess-a-stop"><span class="ic">⏹</span>停止<span class="sub">中断正在运行的任务</span></div>
-        <div class="act-row" id="sess-a-archive"><span class="ic">📦</span>アーカイブ<span class="sub">从列表收起（桌面端可恢复）</span></div>
+        <div class="act-row" id="sess-a-rename" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>名前を変更<span class="sub">この会話のタイトルを変更</span></div>
+        <div class="act-row" id="sess-a-fork" role="button" tabindex="0"><span class="ic" data-act-ic="fork"></span>会話を分岐<span class="sub">新しい会話にコピーして続ける</span></div>
+        <div class="act-row" id="sess-a-stop"><span class="ic">⏹</span>停止<span class="sub">実行中のタスクを中断</span></div>
+        <div class="act-row" id="sess-a-archive"><span class="ic">📦</span>アーカイブ<span class="sub">一覧から隠す（デスクトップ版で復元可能）</span></div>
         <div class="q-edit-box" id="sess-rename-box" contenteditable aria-label="新しいタイトル"></div>
       </div>
       <button class="q-save" id="sess-rename-save" type="button">タイトルを保存</button>
@@ -5405,7 +5410,7 @@ function buildShell() {
     if (cp) {
       const pre = cp.parentElement && cp.parentElement.querySelector('pre')
       const t = pre ? pre.textContent : ''
-      copyText(t, (ok) => { cp.textContent = ok ? '已コピー ✓' : 'コピー失败'; setTimeout(() => { cp.textContent = 'コピー' }, 1200) })
+      copyText(t, (ok) => { cp.textContent = ok ? 'コピーしました ✓' : 'コピーできませんでした'; setTimeout(() => { cp.textContent = 'コピー' }, 1200) })
       return
     }
     const im = e.target.closest && e.target.closest('.msg-img')
@@ -5421,7 +5426,7 @@ function buildShell() {
       const th = el('div', 'attach-thumb')
       const img = el('img'); img.src = im.previewUrl; img.alt = im.name
       const rm = el('button', 'rm', '✕')
-      rm.setAttribute('aria-label', '移除图片')
+      rm.setAttribute('aria-label', '画像を削除')
       rm.onclick = () => { pendingImages.splice(i, 1); renderStrip() }
       th.append(img, rm)
       strip.appendChild(th)
@@ -5431,7 +5436,7 @@ function buildShell() {
     const limits = S.current ? sess(S.current).imageLimits : null
     const maxN = (limits && limits.maxImagesPerMessage) || 20
     for (const f of files) {
-      if (pendingImages.length >= maxN) { toast('最多 ' + maxN + ' 张图片', true); break }
+      if (pendingImages.length >= maxN) { toast('上限は' + maxN + '枚の画像です', true); break }
       try { pendingImages.push(await fileToImage(f)) } catch (err) { toast(err.message, true) }
     }
     renderStrip()
@@ -5478,7 +5483,7 @@ function buildShell() {
       renderQuoteStrip()
     }
     if ((!text && !pendingImages.length) || !S.current) return
-    if (S.connState !== 'online') { toast('当前离线，等待重连…', true); return }
+    if (S.connState !== 'online') { toast('現在はオフラインです。再接続を待っています…', true); return }
     const images = pendingImages
     pendingImages = []
     renderStrip()
@@ -5506,7 +5511,7 @@ function buildShell() {
       sendLpFired = true
       vibrate([30, 40, 30])
       const inv = busyEnter() === 'steer' ? 'queue' : 'steer'
-      toast(inv === 'steer' ? '本次将插话送信 ⚡' : '本次将待ち行列送信 ⏳')
+      toast(inv === 'steer' ? '今回は割り込みで送信します ⚡' : '今回は待ち行列へ送信します ⏳')
       doSend(inv)
     }, 420)
   }, { passive: true })
