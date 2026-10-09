@@ -26,7 +26,18 @@ Webプロファイルの `cordis.patch.yml` に追加します。
 
 Harnessはloopback待受を維持し、遠隔利用には認証付きの暗号化された私設ネットワーク、または認証を維持するHTTPSプロキシを使います。一般のLANへHTTP公開しないでください。HTTPSの接続先はHarnessのtrusted hostに登録し、WebSocketも転送します。
 
+Tailscale Serveを使う場合は、端末名が公開証明書ログへ記録されることを確認してHTTPSだけを有効にし、Funnelは無効のままにします。次の設定はtailnet内だけにHTTPS入口を追加します。
+
+```powershell
+tailscale serve --bg --https=443 http://127.0.0.1:3080
+tailscale serve status --json
+```
+
+URLは `https://<device>.<tailnet>.ts.net/m/`。Harnessの `--trusted-host` には同じホスト名をポートなしで追加します。通常のHTTPSリクエストはHostに `:443` を含まないため、`:443` 付きの許可だけでは拒否されます。設定変更は実行中の会話がないときに反映し、HTTPS画面とWSSの接続、未認証401・異なるOriginの403を確認します。
+
 同じ接続先のHarnessトップ `/` で初回認証を済ませ、`/m/` を開きます。iPhoneではSafariの共有 →「ホーム画面に追加」。認証リンクはGit・ログ・スクリーンショットへ保存しません。401は再認証、403は接続先とHost/Origin設定を確認します。
+
+HTTPのIPアドレスからHTTPSのホスト名へ切り替える場合、認証Cookieは引き継がれません。起動時の認証URLを新しいHTTPS接続先へ置き換えて一度認証し、トークンのない `/m/` をホーム画面へ追加し直します。
 
 ## セキュリティと保存
 
