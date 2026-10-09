@@ -1,0 +1,24 @@
+{
+  "project": "dsh-pwa",
+  "fork": "https://github.com/came815/dsh-pwa",
+  "repository": "https://github.com/jackxu925/dsh-pwa",
+  "commit": "d734b0ffce5f0366a38a25e190fe2099caf0020f",
+  "source": "https://github.com/jackxu925/dsh-pwa/tree/d734b0ffce5f0366a38a25e190fe2099caf0020f",
+  "archive": "https://api.github.com/repos/jackxu925/dsh-pwa/tarball/d734b0ffce5f0366a38a25e190fe2099caf0020f",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "copyright": "Copyright (c) 2026 jackxu925",
+  "originalMetadata": {
+    "package": "upstream/package.json",
+    "readme": "upstream/README.md"
+  },
+  "provenance": "Public fork based on the pinned upstream commit. Original source directories remain in Git; the private local package exports only the reviewed authenticated host wrapper.",
+  "excludedRuntime": ["lib/", "client/", "web/prototype-harness.html", "cordis.patch.yml", "upstream lifecycle scripts"],
+  "localPatchBoundaries": {
+    "host": "index.js and server.js provide authenticated fixed /m assets only; no original lib/client entry is loaded",
+    "theme": "theme.js extracts the pinned inline bootstrap; server index transform replaces only that known block and sets Japanese language/title",
+    "browser": "web/app.js, style.css, index.html and manifest.webmanifest may carry reviewed Japanese and security patches",
+    "storage": "No service worker, offline cache, session transcript storage, launch-token persistence, or new host trust grant is introduced",
+    "tests": "Dependency-free route and extracted browser-handler tests run locally. An optional installed-runtime fence test imports only the package explicitly selected by DSH_RUNTIME_PACKAGE_ROOT."
+  }
+}

@@ -1,125 +1,54 @@
-<img width="1200" height="630" alt="og-image" src="https://github.com/user-attachments/assets/2ec218ac-e9ef-46e7-9046-421cee7855c2" />
+# DeepSeek Harness PWA — 日本語・認証対応版
 
-# dsh-pwa
+This is a maintained fork of [jackxu925/dsh-pwa](https://github.com/jackxu925/dsh-pwa), based on `d734b0ffce5f0366a38a25e190fe2099caf0020f`. Original work by jackxu925; adaptations by came815. The original MIT license and copyright remain in [LICENSE](LICENSE). Original documentation and metadata are preserved under [upstream/](upstream/).
 
-English | [中文](README.zh.md)
+スマホから既存Harnessの会話・モデル・画像添付・実行承認を操作するPWAです。主要操作を日本語化し、すべてのモバイル配信に既存の認証・Host/Origin検証を適用しました。今後の使い勝手の改善もこのForkで管理します。
 
-**DeepSeek Harness in your pocket.** A phone-first PWA for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`): it mounts at `/m` on your `dsh web` server — session list, real-time streaming chat, approvals, agent questions, new sessions, image messages. No app install: open it in mobile Safari/Chrome → *Add to Home Screen* → full-screen app. iOS and Android.
+## 導入
 
-[![npm version](https://img.shields.io/npm/v/dsh-pwa)](https://www.npmjs.com/package/dsh-pwa)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![PWA ready](https://img.shields.io/badge/PWA-ready-brightgreen)](web/manifest.webmanifest)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+検証対象は `@deepseek-ai/dsh@0.2.0-rc.2`、Node.js 22以降。Harnessを終了してから、このリポジトリをファイル依存として追加します。追加のnpm依存・インストール時スクリプトはありません。
 
-![dsh-pwa sessions and chat on a phone](assets/screenshot-sessions.png)
-
-## Why a PWA instead of a native app?
-
-| | **dsh-pwa** | saya-ch/dsh-mobile | Official web UI over Tailscale |
-|---|---|---|---|
-| Form | PWA, zero install on the phone | Native Android app + plugin | Desktop-first web UI |
-| iOS | ✅ (Safari → Add to Home Screen) | ❌ (Android only) | ✅ (browser) |
-| Android | ✅ | ✅ | ✅ |
-| Remote access | Inherits `dsh web` (LAN / Tailscale / any reverse proxy) | Built-in: LAN, Tailscale Funnel, cpolar, cloudflared, FRP | Manual `tailscale serve` |
-| Push notifications | ❌ (iOS PWA limits) | ✅ (Android system notifications) | ❌ |
-| Security model | Same origin + dsh `trusted-host` fence | Cert pinning + device pairing | `trusted-host` fence |
-| Maintenance surface | Static files only — speaks the same `/api` as the desktop GUI | Native app + plugin to maintain | None (official UI) |
-
-If you want Android system notifications and certificate-pinned device pairing, check out [saya-ch/dsh-mobile](https://github.com/saya-ch/dsh-mobile). If you want the lightest thing that works on **both** iOS and Android with nothing to install on the phone, you're in the right place.
-
-## Features
-
-- 📋 Session list with workspace grouping, search, pull-to-refresh, and a real "needs attention" filter (pending approvals / questions)
-- 💬 Streaming chat with optimistic send, queued-message visibility, per-day dividers, timestamps, code-copy buttons, and full-screen image viewer
-- ✅ Approvals & ❓ agent questions as tappable cards (dangerous commands get a red double-confirm)
-- 🖼️ Send images from camera / photo library / clipboard paste (auto-compressed to the model's limits)
-- ➕ New sessions with agent-preset picker
-- 📳 Haptics, dark/light themes, draft autosave per session, connection-status pill with manual reconnect
-- ⚙️ Desktop GUI gets a *Settings → 手机端* entry showing the phone URL + copy button (no typing URLs on a phone keyboard)
-
-The full UX audit trail lives in [docs/AUDIT.md](docs/AUDIT.md) — 69 items, all fixed, each with the root cause.
-
-## Quick start
-
-Prerequisite: desktop `dsh` CLI installed.
-
-**1.** Create (or reuse) a web profile, `~/.dsh/profiles/web/package.json`:
-
-```json
-{
-  "name": "dsh-profile-web",
-  "private": true,
-  "dependencies": {
-    "dsh-pwa": "latest"
-  },
-  "dsh": {
-    "profile": {
-      "bundles": [
-        "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-web-app",
-        "dsh-pwa"
-      ]
-    }
-  }
-}
+```powershell
+git clone https://github.com/came815/dsh-pwa.git
+# Harnessのpackage.jsonがあるフォルダーで、実際の配置を指定。
+npm.cmd install --ignore-scripts /absolute/path/to/dsh-pwa
 ```
 
+Webプロファイルの `cordis.patch.yml` に追加します。
 
-**2.** Install and start (add your access domain to the trust fence when the phone connects from outside):
-
-```bash
-cd ~/.dsh/profiles/web && npm install
-dsh --profile web --host 0.0.0.0 --port 3080 --trusted-host <your-access-domain>
+```yaml
+- insert:
+    - id: local-pwa
+      name: dsh-local-pwa
 ```
 
-**3.** On your phone, open `http://<host>:3080/m/` → *Share → Add to Home Screen* for the full-screen PWA.
-   - Same LAN/Wi-Fi: `<host>` is the server's LAN IP.
-   - Away from home: use [Tailscale](https://tailscale.com) — add your Tailscale hostname to `--trusted-host` in step 2 (Tailscale must be running on both the server and the phone, logged into the same account), then open `http://<tailscale-hostname>:3080/m/`.
+上流の `dsh-pwa` と同時に有効化しないでください。どちらも `/m` を使います。この版は `index.js` が入口で、上流の `lib/`・`client/` は実行しません。npmには公開せず `private: true` を維持します。
 
-Upgrade later with `npm update dsh-pwa` and a `dsh web` restart. The plugin only mounts static files; the page speaks DSH's own `/api`, so it moves with your DSH version (developer-preview caveat in the FAQ below).
+Harnessはloopback待受を維持し、遠隔利用には認証付きの暗号化された私設ネットワーク、または認証を維持するHTTPSプロキシを使います。一般のLANへHTTP公開しないでください。HTTPSの接続先はHarnessのtrusted hostに登録し、WebSocketも転送します。
 
-## How it works
+同じ接続先のHarnessトップ `/` で初回認証を済ませ、`/m/` を開きます。iPhoneではSafariの共有 →「ホーム画面に追加」。認証リンクはGit・ログ・スクリーンショットへ保存しません。401は再認証、403は接続先とHost/Origin設定を確認します。
 
-- The server does exactly one thing: mount `web/` as static files at `/m` (`lib/routes.js`, self-healing if the webServer instance is recreated).
-- The page talks directly to DSH's own `/api` — the identical protocol the desktop GUI uses (`POST /api/<ns>/<method>`, `POST /api/respond`, `ws://…/api/events.mux` downstream frames). Zero business-logic duplication.
-- Tailscale works out of the box because it reuses the existing `trusted-host` fence.
+## セキュリティと保存
 
-Iterating on the UI needs no restart: files are re-read per request, just refresh the page.
+- すべての `/m` リクエストで認証を先に確認。固定ファイルのみ配信し、未知のパス・パストラバーサル・GET/HEAD以外を拒否します。
+- CSP、フレーム禁止、no-referrer、no-store、nosniffを設定。通信先は同じHarnessです。外部フォント・解析・QRサービスは追加しません。
+- 会話内の外部リンクは `noopener,noreferrer` で開き、開いた先が元画面を操作する経路を遮断します。
+- Service Worker・オフラインキャッシュはありません。PCとネットワークへの接続が必要です。
+- 下書き・表示設定はブラウザーのlocalStorageに残ります。会話本文をオフライン複製しません。認証CookieはHarnessが管理します。
+- ツール・ファイル・実行承認の権限は既存Harnessの設定に従います。PWAの追加で広げません。
 
-## Screenshots
+iPhone実機のSafari、ホーム画面追加、推論・画像生成は別途実機確認が必要です。
 
-| Sessions | Chat |
-|---|---|
-| ![session list](assets/screenshot-sessions.png) | ![chat](assets/screenshot-chat.png) |
+## 検証・今後の改修
 
-## Roadmap
+```powershell
+node --check web/app.js
+npm.cmd test
+# インストール済みConnection実装による追加試験のみ任意で指定。
+$env:DSH_RUNTIME_PACKAGE_ROOT='/absolute/path/to/node_modules/@deepseek-ai/dsh-client-connection'
+npm.cmd test
+```
 
-Contributor-friendly next steps (from [docs/AUDIT.md](docs/AUDIT.md) §"still needs protocol/server support"):
+テストは固定配信・認証委譲・Host/Origin・CSP・外部リンク保護を確認します。UI変更は393×852とデスクトップ/reflowで実画面を確認し、入力欄・承認ボタン・横はみ出しも確認します。実行操作は模擬データを使い、既存の作業やGPU推論を動かしません。
 
-- [ ] Last-message preview + unread counts in `session/list`
-- [ ] Session management (archive / rename / delete) on mobile via long-press menu
-- [ ] Cancel / edit queued messages
-- [ ] Web Push: system notifications for approvals & questions while in background
-- [ ] Service-worker offline shell (needs https first)
-
-Full list: [docs/ROADMAP.md](docs/ROADMAP.md). Grab one, open a PR — see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Contributing
-
-Vanilla JS, no build step, no framework. `web/` is the app, `lib/` is the mount, `client/` injects the desktop settings entry. Details in [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome — especially the roadmap items above.
-
-## FAQ
-
-**Does it work on iPhone?** Yes — that's the point. Safari → Share → Add to Home Screen.
-
-**Do I install anything on the phone?** No. It's a web page.
-
-**Is it safe to expose?** Same threat model as `dsh web` itself: anyone who can reach the URL (your tailnet / LAN) can drive your agent. Keep it inside a trusted network; don't put it on the public internet.
-
-**Does it work offline?** No — it needs a live connection to your `dsh` server.
-
-**Will a DSH update break it?** The page speaks the same `/api` as the desktop GUI and ships no protocol logic of its own, so it moves with your DSH version. That said, DSH is still in developer preview and its API may change in breaking ways — if that happens, the plugin will need a matching update.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+このForkでブランチ・commitを作り、`origin`へpushします。`upstream`は更新確認用です。元プロジェクトへのIssue・PR・コメントは自動では送りません。上流更新は差分を確認し、認証とブラウザーの回帰確認後に取り込みます。

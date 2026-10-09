@@ -15,6 +15,10 @@ jobs:
           node-version: 22
       - name: Syntax check (no build step in this repo — keep it that way)
         run: |
+          node --check index.js
+          node --check server.js
+          node --check theme.js
+          node --check web/app.js
           node --check lib/index.js
           node --check lib/routes.js
           node --check client/client.js
@@ -25,5 +29,5 @@ jobs:
             test -f "$f" || { echo "missing: $f"; exit 1; }
           done
           node -e "JSON.parse(require('fs').readFileSync('web/manifest.webmanifest','utf8')); console.log('manifest: valid JSON')"
-      - name: Mount smoke test
-        run: node test/smoke.mjs
+      - name: Authenticated route and browser link regression tests
+        run: npm test

@@ -58,9 +58,9 @@ function onTap(node, fn) {
   }, { passive: false })
   node.addEventListener('click', (e) => { if (Date.now() - touchAt > 500) fn(e) })
 }
-/* 复制文本：clipboard API 在非安全上下文（http over Tailscale）不可用，降级 execCommand */
+/* コピー文本：clipboard API 在非安全上下文（http over Tailscale）不可用，降级 execCommand */
 function copyText(t, done) {
-  // done(ok)：汇报真实成败——此前 execCommand 抛错也照样回调，失败同样提示「已复制 ✓」
+  // done(ok)：汇报真实成败——此前 execCommand 抛错也照样回调，失败同样提示「已コピー ✓」
   const fin = (ok) => { if (done) done(ok) }
   if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(() => fin(true), () => fallbackCopy(t, fin)); return }
   fallbackCopy(t, fin)
@@ -178,7 +178,7 @@ function linkifyText(text) {
 function md(src) {
   const blocks = []
   let s = String(src).replace(/```(\w*)\n?([\s\S]*?)(```|$)/g, (m, lang, code) => {
-    blocks.push('<div class="code-wrap"><button class="code-copy" type="button">复制</button><pre><code>' + esc(code.replace(/\n$/, '')) + '</code></pre></div>')
+    blocks.push('<div class="code-wrap"><button class="code-copy" type="button">コピー</button><pre><code>' + esc(code.replace(/\n$/, '')) + '</code></pre></div>')
     return '' + (blocks.length - 1) + ''
   })
   // 裸 URL 自动转可点链接（在原始文本上切分再分段转义；在 md 链接语法与粗体之前，
@@ -242,7 +242,7 @@ async function rpc(endpoint, args, rpcId, timeoutMs) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ type: 'client-request', rpcId: rpcId || uuid(), method: endpoint, payload: { args: args || {} } }),
-    // Tailscale 抖动时挂起的请求会让气泡永远停在「发送中」：20s 超时落地成失败态（可点重试）
+    // Tailscale 抖动时挂起的请求会让气泡永远停在「送信中」：20s 超时落地成失败态（可点重试）
     signal: AbortSignal.timeout(timeoutMs || 20000),
   })
   if (!r.ok) {
@@ -273,8 +273,8 @@ const S = {
   connState: 'connecting',  // connecting | online | offline
   current: null,            // open session id
   todoMode: false,          // 待办过滤
-  listMode: (() => { try { return localStorage.getItem('dshm-list-mode') || 'time' } catch (e) { return 'time' } })(),  // 列表视图：time（按最近活跃平铺）| workspace（按工作区分组）
-  wsDrill: null,            // 「按工作区」视图下钻的工作区 id（null = 显示工作区列表）；'__other__' = 未分组
+  listMode: (() => { try { return localStorage.getItem('dshm-list-mode') || 'time' } catch (e) { return 'time' } })(),  // 列表视图：time（按最近の会話平铺）| workspace（作業フォルダー別分组）
+  wsDrill: null,            // 「作業フォルダー別」视图下钻的作業フォルダー id（null = 显示作業フォルダー列表）；'__other__' = 未分组
   listLoaded: false,        // 首次 session/list 是否已落地（空态分岔用）
   staleNotice: null,        // 断线期间失效的审批/提问计数（重连后挂条提示，可手动关掉）
   authExpired: false,       // rpc 401 → 顶部常驻横幅（PWA cookie 隔离时给出明确出路）
@@ -287,10 +287,10 @@ function sess(id) {
     s = {
       id, title: null, running: false, blank: true, updatedAt: 0, cwd: '', agentPreset: null,
       loaded: false, hasMore: false, oldestSeq: null,
-      createdHere: false,              // 本机创建的会话：即使为空也在列表可见，避免「刚建的会话消失了」
-      subagent: false,                 // 子代理会话不在列表显示
+      createdHere: false,              // 本机创建的会話：即使为空也在列表可见，避免「刚建的会話消失了」
+      subagent: false,                 // 子代理会話不在列表显示
       items: [],                       // folded chat items（含乐观上屏的 pending 项）
-      queue: [],                       // control 流 queue 帧（排队/插话中的消息）
+      queue: [],                       // control 流 queue 帧（待ち行列/插话中的メッセージ）
       live: null,                      // {turn, step, texts:{idx:text}}
       approvals: new Map(),            // eventId → {eventId, toolName, callId, reason, outcome}
       questions: new Map(),            // eventId → {rpcId, questions, outcome}
@@ -298,7 +298,7 @@ function sess(id) {
       lastPreview: '',
       permissions: null,               // {options:[{value,name,description?}], currentValue}
       models: null,                    // session/modelCatalog 缓存
-      modelSel: null,                  // 当前模型选择 {provider,model,reasoningEffort}（modelSelection.next）
+      modelSel: null,                  // 当前モデル选择 {provider,model,reasoningEffort}（modelSelection.next）
       imageLimits: null,               // imageLimits 投影
       ctxPressure: null,               // {pressureTokens, projectedTokens, contextWindow}
       ctxBreakdown: null,              // {systemTokens, toolsTokens, messageTokens}
@@ -306,8 +306,8 @@ function sess(id) {
       sessionStats: null,              // {turns, steps, llmMs, toolMs}
       todos: null,                     // 宿主 todos 投影（按 turn 重置）：[{content,status}] | null
       _todoCalls: new Set(),           // 已从时间线隐去的 todo_write 工具调用 id
-      _pendingCalls: [],               // 待配对的 tool/call id 队列（结果消息不带 id，只能按顺序配）
-      _thinkBuf: '',                   // 攒着「只有思考没有正文」的 assistant 消息，挂到下一条内容上
+      _pendingCalls: [],               // 待配对的 tool/call id 队列（结果メッセージ不带 id，只能按顺序配）
+      _thinkBuf: '',                   // 攒着「只有思考没有正文」的 assistant メッセージ，挂到下一条内容上
       _todoTimer: null,                // 全部完成后自动收起的定时器
       _todoCollapsed: false,           // 任务条是否已收成一条细线
       follow: true,                  // 用户想在底部（被顶离也会恢复跟随）；主动上滑才置 false
@@ -330,7 +330,7 @@ const hasPending = (s) => {
   for (const q of s.questions.values()) if (!q.outcome) return true
   return false
 }
-function sessTitle(s) { return s.title || '新会话' }
+function sessTitle(s) { return s.title || '新しい会話' }
 
 /* ================= 图片 ================= */
 const attachCache = new Map()  // attachmentId → dataUrl
@@ -367,8 +367,8 @@ function attachImgEl(s, ref) {
       img.src = url
     })
     .catch(() => {
-      // 失败不静默移除：留下可重试的占位，避免消息「少了一块」而用户无感知
-      const box = el('button', 'img-fail', '图片加载失败 · 点按重试')
+      // 失败不静默移除：留下可重试的占位，避免メッセージ「少了一块」而用户无感知
+      const box = el('button', 'img-fail', '图片加载失败 · タップして再試行')
       box.type = 'button'
       box.onclick = () => box.replaceWith(attachImgEl(s, ref))
       img.replaceWith(box)
@@ -406,7 +406,7 @@ function fileToImage(file) {
   })
 }
 
-/* ================= 会话事件折叠 ================= */
+/* ================= 会話事件折叠 ================= */
 function textOf(content) {
   if (!Array.isArray(content)) return ''
   return content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('')
@@ -465,7 +465,7 @@ function foldEvent(s, event, view) {
   // 最近一次事件时间（宿主时间轴）+ 收到它的本地时刻：实时 pill 靠这对值把本地时钟换算回宿主时钟
   s._lastEventAt = event.time
   s._lastEventSeenAt = Date.now()
-  // 折叠用的临时会话对象（loadEarlier 的分页缓冲）不一定带全字段，这里惰性补齐
+  // 折叠用的临时会話对象（loadEarlier 的分页缓冲）不一定带全字段，这里惰性补齐
   if (!s._todoCalls) s._todoCalls = new Set()
   if (!s._pendingCalls) s._pendingCalls = []
   switch (t) {
@@ -474,7 +474,7 @@ function foldEvent(s, event, view) {
       const text = textOf(d.content)
       const images = imageBlocksOf(d.content)
       if (!text.trim() && !images.length) return
-      // 乐观上屏去重：同一 rpcId 的消息已上屏则就地转正
+      // 乐观上屏去重：同一 rpcId 的メッセージ已上屏则就地转正
       const rid = d.source && d.source.rpcId
       if (rid) {
         const i = s.items.findIndex((x) => x.kind === 'user' && x.rpcId === rid)
@@ -499,7 +499,7 @@ function foldEvent(s, event, view) {
         }
       }
       s.items.push({ kind: 'user', text, images: images.length ? images : null, time: event.time, seq: event.seq, rpcId: rid || null })
-      s._qStale = true   // 「问过的问题」的缓存/计数作废，下次打开重算
+      s._qStale = true   // 「質問一覧」的缓存/计数作废，下次打开重算
       s.lastPreview = text || '[图片]'
       break
     }
@@ -545,7 +545,7 @@ function foldEvent(s, event, view) {
       const reasoning = (m.content || []).filter((b) => b && (b.type === 'reasoning' || b.type === 'thinking')).map((b) => b.text || '').join('')
       if (!text.trim() && !reasoning.trim()) return
       endLive(s, d.turn, d.step)
-      settleThinkDrawer(s)  // 抽屉若在直播这轮思考：熄灭「正在思考」徽标，正文保留
+      settleThinkDrawer(s)  // 抽屉若在直播这轮思考：熄灭「考えています」徽标，正文保留
       // 「只有思考、没有正文」是每个工具步骤前的常态（一轮里能有上百条）：
       // 单独成条会渲染成一排空泡泡，所以先攒着，挂到下一条真正的内容上
       if (!text.trim()) { s._thinkBuf = (s._thinkBuf || '') + reasoning; break }
@@ -561,7 +561,7 @@ function foldEvent(s, event, view) {
         s.live.texts[c.index] = (s.live.texts[c.index] || '') + c.text
         renderLive(s)
       } else if ((c.type === 'reasoning-delta' || c.type === 'thinking-delta') && typeof c.text === 'string') {
-        // 思考流（事件路径）：与 WS 路径对称——中途进会话/断线续看时思考也能实时上屏（两路不同时激活，无重复）
+        // 思考流（事件路径）：与 WS 路径对称——中途进会話/断线续看时思考也能实时上屏（两路不同时激活，无重复）
         if (!s.live || s.live.turn !== d.turn || s.live.step !== d.step) s.live = { turn: d.turn, step: d.step, texts: {} }
         if (!s.live.reasoning) s.live.reasoning = {}
         s.live.reasoning[c.index] = (s.live.reasoning[c.index] || '') + c.text
@@ -585,7 +585,7 @@ function foldEvent(s, event, view) {
     case 'tool/result': {
       const m = d.message || {}
       let callId = m.toolCallId || m.callId || (m.tool_use && m.tool_use.id) || null
-      // 宿主的 tool/result 消息不带 callId（只有 source/content/role/id），按调用顺序出队配对；
+      // 宿主的 tool/result メッセージ不带 callId（只有 source/content/role/id），按调用顺序出队配对；
       // 带 id 的就从待配对队列里摘掉，避免队列错位
       if (callId) {
         const qi = s._pendingCalls.indexOf(callId)
@@ -618,7 +618,7 @@ function foldEvent(s, event, view) {
     case 'turn/end': {
       s.running = false
       if (S.current === s.id) seenMark(s.id, event.seq)   // 正看着：这轮的回复不用再标未读
-      // 自动朗读（默认关）：本轮最后一条有字的助手消息，稍等半秒开读
+      // 自动朗读（默认关）：本轮最后一条有字的助手メッセージ，稍等半秒开读
       if (ttsAuto() && s.loaded && S.current === s.id) {
         const lastA = [...s.items].reverse().find((i) => i.kind === 'assistant' && i.text && i.text.trim())
         if (lastA) setTimeout(() => { if (S.current === s.id) ttsSpeak(s, lastA) }, 500)
@@ -638,7 +638,7 @@ function foldEvent(s, event, view) {
         hostItem = it2
         break   // 只挂本轮最后一条
       }
-      // 轮起点落在加载窗口外（长任务会话）：补回真实起点，总时长不该显示成「—」
+      // 轮起点落在加载窗口外（长任务会話）：补回真实起点，总时长不该显示成「—」
       if (hostItem && !hadStart) {
         const endAt = event.time
         backfillTurnStart(s, curTurn, (startAt) => {
@@ -650,7 +650,7 @@ function foldEvent(s, event, view) {
       s._turnTiming = null
       s._turnUsage = null
       stopLiveTicker()
-      syncLivePill(s)   // 收掉实时 pill（正式 pill 由本轮最后一条助手消息承载）
+      syncLivePill(s)   // 收掉实时 pill（正式 pill 由本轮最后一条助手メッセージ承载）
       endLive(s, null, null)
       const r = d.reason || {}
       if (r.kind === 'error') {
@@ -660,22 +660,22 @@ function foldEvent(s, event, view) {
         s.items.push({ kind: 'sys', text: '⏹ 已中断', time: event.time })
       }
       // 攒下来的思考若一直没等到承载它的内容（例如本轮只说了一句思考就结束），
-      // 落成一条极简的「思考过程」行，既不丢内容也不产生空泡泡
+      // 落成一条极简的「思考内容」行，既不丢内容也不产生空泡泡
       if (s._thinkBuf && s._thinkBuf.trim()) s.items.push({ kind: 'think', reasoning: takeThinkBuf(s), time: event.time })
       break
     }
     case 'session/title': if (d.title) s.title = d.title; break
     case 'goal/change': {
-      // 目标变更标记：create/edit/pause/resume/complete/clear → 极简系统行
+      // 目標变更标记：create/edit/pause/resume/complete/clear → 极简系统行
       const opMap = { create: '已创建', edit: '已修改', pause: '已暂停', resume: '已恢复', complete: '已完成', clear: '已删除', blocked: '被卡住' }
       const label = opMap[d.operation] || d.operation
-      s.items.push({ kind: 'sys', goalMark: '🎯 目标' + label, time: event.time, seq: event.seq })
+      s.items.push({ kind: 'sys', goalMark: '🎯 目標' + label, time: event.time, seq: event.seq })
       if (S.current === s.id) scheduleRender(s)
       break
     }
     case 'model/selection': {
-      // 模型切换标记：渲染成极简系统行（→ 名字 · 强度），回看长会话能知道每段是哪个模型
-      // 同一手势的连续选择（选模型、紧跟选强度）合并成一条，不刷屏
+      // モデル切换标记：渲染成极简系统行（→ 名字 · 强度），回看长会話能知道每段是哪个モデル
+      // 同一手势的连续选择（选モデル、紧跟选强度）合并成一条，不刷屏
       const prev = s.items[s.items.length - 1]
       if (prev && prev.kind === 'sys' && prev.modelSel && event.time - (prev.time || 0) < 3000) prev.modelSel = { ...d }
       else s.items.push({ kind: 'sys', modelSel: { ...d }, time: event.time, seq: event.seq })
@@ -735,14 +735,14 @@ function toolNode(item) {
   const truncated = detail.length > TRUNC
   pre.textContent = detail.slice(0, TRUNC) || '(无输出)'
   body.appendChild(pre)
-  if (truncated) body.appendChild(el('div', 'tool-trunc', '⚠ 输出超过 ' + TRUNC + ' 字符，已截断显示——点「复制」可取完整内容'))
-  // 工具卡操作行：复制完整输出（构建日志/检索结果直接可取，不必手动框选）
+  if (truncated) body.appendChild(el('div', 'tool-trunc', '⚠ 输出超过 ' + TRUNC + ' 字符，已截断显示——点「コピー」可取完整内容'))
+  // 工具卡操作行：コピー完整输出（构建日志/检索结果直接可取，不必手动框选）
   if (detail) {
     const acts = el('div', 'tool-acts')
     const cp = el('button', 'tool-copy2')
     cp.type = 'button'
-    cp.textContent = '复制'
-    cp.onclick = (e) => { e.stopPropagation(); copyText(detail, (ok) => toast(ok ? '已复制完整输出（' + detail.length + ' 字符）' : '复制失败，请重试', !ok)) }
+    cp.textContent = 'コピー'
+    cp.onclick = (e) => { e.stopPropagation(); copyText(detail, (ok) => toast(ok ? '已コピー完整输出（' + detail.length + '文字）' : 'コピー失败，请重试', !ok)) }
     acts.appendChild(cp)
     body.appendChild(acts)
   }
@@ -763,8 +763,8 @@ function approvalNode(s, a) {
   const ico = el('div', 'a-ico'); ico.appendChild(icon('warn', 17))
   head.appendChild(ico)
   const ht = el('div')
-  ht.appendChild(el('div', 'a-title', a.toolName + ' 请求你的批准'))
-  ht.appendChild(el('div', 'a-sub', a.outcome ? '已处理' : '等待你的决定'))
+  ht.appendChild(el('div', 'a-title', a.toolName + ' の実行を承認してください'))
+  ht.appendChild(el('div', 'a-sub', a.outcome ? '処理済み' : '判断を待っています'))
   head.appendChild(ht)
   card.appendChild(head)
   const call = a.callId && s.callArgs.get(a.callId)
@@ -776,7 +776,7 @@ function approvalNode(s, a) {
     card.appendChild(cmdEl)
     if (truncated) {
       // 审批恰恰需要看全参数才能决策：截断处可展开
-      const more = el('button', 'cmd-more', '展开全文（' + full.length + ' 字符）')
+      const more = el('button', 'cmd-more', '全文を表示（' + full.length + '文字）')
       more.type = 'button'
       more.onclick = () => { cmdEl.textContent = full; more.remove() }
       card.appendChild(more)
@@ -786,35 +786,35 @@ function approvalNode(s, a) {
   if (a.reason) card.appendChild(el('div', 'approval-reason', a.reason))
   if (a.outcome) {
     const done = el('div', 'approval-done ' + (a.outcome === 'allowed-once' ? 'ok' : a.outcome === 'rejected' ? 'no' : 'mut'))
-    const OUTCOME_ZH = { 'allowed-once': '已允许 ✓', 'rejected': '已拒绝 ✕', 'decided-elsewhere': '已在其它端处理', 'cancelled': '已取消' }
-    done.textContent = OUTCOME_ZH[a.outcome] || '已处理'
+    const OUTCOME_ZH = { 'allowed-once': '許可済み ✓', 'rejected': '拒否済み ✕', 'decided-elsewhere': '別の画面で処理済み', 'cancelled': 'キャンセル済み' }
+    done.textContent = OUTCOME_ZH[a.outcome] || '処理済み'
     card.appendChild(done)
     return card
   }
-  if (a._danger) card.appendChild(el('div', 'approval-danger', '⚠️ 检测到高风险命令，「允许」需再点一次确认'))
+  if (a._danger) card.appendChild(el('div', 'approval-danger', '⚠️ 危険なコマンドです。許可するにはもう一度タップしてください。'))
   const btns = el('div', 'approval-btns')
-  const deny = el('button', 'b-deny', '拒绝')
-  const allow = el('button', 'b-allow', '允许一次')
+  const deny = el('button', 'b-deny', '拒否')
+  const allow = el('button', 'b-allow', '今回のみ許可')
   deny.onclick = async () => {
     a.outcome = 'rejected'; vibrate(12); rerenderApproval(s, a)
     const ok = await answerWaterfall(a.eventId || a.approvalId, { kind: 'result', value: 'rejected' })
-    if (!ok) { toast('发送失败，请重试', true); a.outcome = null; rerenderApproval(s, a) }
+    if (!ok) { toast('送信に失敗しました。再試行してください。', true); a.outcome = null; rerenderApproval(s, a) }
     refreshBadges()
   }
   let armed = false, armTimer = null
   allow.onclick = async () => {
     if (a._danger && !armed) {
       armed = true
-      allow.textContent = '再次点击确认允许'
+      allow.textContent = 'もう一度タップして許可'
       allow.classList.add('armed')
       vibrate([30, 40, 30])
-      armTimer = setTimeout(() => { armed = false; allow.textContent = '允许一次'; allow.classList.remove('armed') }, 3000)
+      armTimer = setTimeout(() => { armed = false; allow.textContent = '今回のみ許可'; allow.classList.remove('armed') }, 3000)
       return
     }
     clearTimeout(armTimer)
     a.outcome = 'allowed-once'; vibrate(12); rerenderApproval(s, a)
     const ok = await answerWaterfall(a.eventId || a.approvalId, { kind: 'result', value: 'allowed-once' })
-    if (!ok) { toast('发送失败，请重试', true); a.outcome = null; rerenderApproval(s, a) }
+    if (!ok) { toast('送信に失敗しました。再試行してください。', true); a.outcome = null; rerenderApproval(s, a) }
     refreshBadges()
   }
   btns.append(deny, allow)
@@ -835,11 +835,11 @@ function questionNode(s, q) {
   head.appendChild(ico)
   const ht = el('div')
   ht.appendChild(el('div', 'a-title', 'Agent 提问'))
-  ht.appendChild(el('div', 'a-sub', q.outcome ? '已处理' : '等待你的回答'))
+  ht.appendChild(el('div', 'a-sub', q.outcome ? '処理済み' : '等待你的回答'))
   head.appendChild(ht)
   card.appendChild(head)
   if (q.outcome) {
-    card.appendChild(el('div', 'ask-done', q.outcome === 'answered' ? '已回答 ✓' : '已取消'))
+    card.appendChild(el('div', 'ask-done', q.outcome === 'answered' ? '已回答 ✓' : 'キャンセル済み'))
     // 保留已提交的答案摘要，方便回溯「我当时答了什么」
     if (q.outcome === 'answered' && Array.isArray(q.answerSummary)) {
       for (const line of q.answerSummary) card.appendChild(el('div', 'ask-ans', line))
@@ -893,8 +893,8 @@ function questionNode(s, q) {
     card.appendChild(customWrap)
   })
   const actions = el('div', 'ask-actions')
-  const cancel = el('button', 'ask-cancel', '取消')
-  const submit = el('button', 'ask-submit', '提交回答')
+  const cancel = el('button', 'ask-cancel', 'キャンセル')
+  const submit = el('button', 'ask-submit', '回答を送信')
   const refreshSubmit = () => {
     const ok = answers.every((a) => a.selected.length > 0 || (a.custom && a.custom.trim()))
     submit.classList.toggle('on', ok)
@@ -909,7 +909,7 @@ function questionNode(s, q) {
     }).filter(Boolean)
     q.outcome = 'answered'; vibrate(12); rerenderQuestion(s, q)
     const ok = await answerWaterfall(q.rpcId, { kind: 'result', value: { answers } })
-    if (!ok) { toast('发送失败，请重试', true); q.outcome = null; rerenderQuestion(s, q) }
+    if (!ok) { toast('送信に失敗しました。再試行してください。', true); q.outcome = null; rerenderQuestion(s, q) }
     refreshBadges()
   }
   actions.append(cancel, submit)
@@ -936,7 +936,7 @@ function scrollBottom(sc, force) {
   })
 }
 
-/* 「↓」pill 状态机：不在底部→显示「↓」；有新内容→「↓ 新消息」；回到底部→隐藏 */
+/* 「↓」pill 状态机：不在底部→显示「↓」；有新内容→「↓ 新しいメッセージ」；回到底部→隐藏 */
 function updateJumpPill() {
   const p = $('#new-msg-pill')
   if (!p) return
@@ -945,7 +945,7 @@ function updateJumpPill() {
   const away = !nearBottom(sc)
   const hasNew = !!sess(S.current)._newBelow
   if (!away) { sess(S.current)._newBelow = false; p.classList.remove('show'); return }
-  p.textContent = hasNew ? '↓ 新消息' : '↓'
+  p.textContent = hasNew ? '↓ 新しいメッセージ' : '↓'
   p.classList.add('show')
 }
 function showNewMsgPill() {
@@ -983,21 +983,21 @@ function skeletonNode() {
 function renderChat(s, forceScroll) {
   if (S.current !== s.id) return
   // 幽灵清扫：double-steer / 事件先到等竞态下留下的「永远插话中」回显——
-  // 只要同文本已有落地消息，这条回显就是鬼，删掉（通常列表里没有 steerEcho，零开销）
+  // 只要同文本已有落地メッセージ，这条回显就是鬼，删掉（通常列表里没有 steerEcho，零开销）
   if (s.items.some((x) => x.steerEcho)) {
     const settled = s.items.filter((x) => x.kind === 'user' && !x.steerEcho && !x.pending).map((x) => (x.text || '').slice(0, 24))
     s.items = s.items.filter((x) => !(x.steerEcho && (x.text || '').slice(0, 24) !== '' && settled.includes((x.text || '').slice(0, 24))))
   }
   const sc = chatScrollEl()
   if (!sc) return
-  // 钉不钉看「用户意图」而不是此刻位置：图片撑开/内容抖动造成的瞬时脱底不该永久取消跟随；
+  // 钉不钉看「用户意图」而不是此刻位置：图片撑开/内容抖动造成的瞬时脱底不该永久キャンセル跟随；
   // 只有用户真的上滑（scroll 事件里 gap 超阈值）才置 follow=false
   const stick = forceScroll || s.follow
   // 不在底部时先记下「视野顶部那条内容」：清空重建会把 scrollTop 夹回 0（阅读位置直接跳回最上面），
-  // 重建后按锚点对回原位——翻页插入旧消息、运行中刷新、图片解码都走这一条路
+  // 重建后按锚点对回原位——翻页插入旧メッセージ、运行中再読み込み、图片解码都走这一条路
   const anchor = stick ? null : captureAnchor(sc)
   sc.textContent = ''
-  // 更早的消息滚动到顶自动加载（无感），不再给用户一个按钮
+  // 更早的メッセージ滚动到顶自动加载（无感），不再给用户一个按钮
   if (s.hasMore) sc.appendChild(el('div', 'auto-load-hint', '· 上滑加载更早 ·'))
   let lastDay = ''
   for (const item of s.items) {
@@ -1014,7 +1014,7 @@ function renderChat(s, forceScroll) {
   refreshChatChrome(s)
   scrollBottom(sc, stick)
 }
-/* 会话视图的低频重渲染：事件流期间合并到每 ~80ms 一次 */
+/* 会話视图的低频重渲染：事件流期间合并到每 ~80ms 一次 */
 const renderTimers = new Map()
 function scheduleRender(s) {
   if (renderTimers.has(s.id)) return
@@ -1055,7 +1055,7 @@ function toolQuoteText(item) {
   if (!t) { try { t = JSON.stringify(item.args, null, 2) } catch (e) { t = '' } }
   return t.length > 1500 ? t.slice(0, 1500) + '\n…（已截断）' : t
 }
-/* 发送编排：引用块 > [来源] + 【注】 + 正文 —— 协议只有 text，引用必须拼进文本（模型实际所见） */
+/* 送信编排：引用块 > [来源] + 【注】 + 正文 —— 协议只有 text，引用必须拼进文本（モデル实际所见） */
 function composeQuoted(quotes, body) {
   const parts = []
   for (const q of quotes) {
@@ -1066,7 +1066,7 @@ function composeQuoted(quotes, body) {
   if (body && body.trim()) parts.push(body.trim())
   return parts.join('\n')
 }
-/* 回读解析：把宿主存回的引用文本还原成结构（重进会话后气泡仍显示成分层引用块） */
+/* 回读解析：把宿主存回的引用文本还原成结构（重进会話后气泡仍显示成分层引用块） */
 function parseQuotedMessage(text) {
   if (typeof text !== 'string' || !/^> \[/.test(text)) return null
   const lines = text.split('\n')
@@ -1142,7 +1142,7 @@ function focusNote(note) {
   if (document.activeElement !== note) requestAnimationFrame(() => { if (document.activeElement !== note) { try { note.focus({ preventScroll: true }) } catch (e) {} } })
 }
 /* 条目的稳定标识：翻页（loadEarlier）后要按它把视口锚回原位。
-   用事件自带的 id，不用下标（前面插入旧消息后下标会整体位移）。 */
+   用事件自带的 id，不用下标（前面插入旧メッセージ后下标会整体位移）。 */
 function itemKey(item) {
   if (!item) return null
   if (item.kind === 'user') return item.seq != null ? 'u' + item.seq : (item.rpcId ? 'r' + item.rpcId : null)
@@ -1164,7 +1164,7 @@ function itemNodeInner(s, item) {
       const b = el('div', 'bubble' + (item.pending ? ' pending' : '') + (item.failed ? ' failed' : ''))
       const parsed = parseQuotedMessage(item.text)
       if (parsed) {
-        // 引用消息：引用块（含来源）+【注】+ 正文分层显示，原文仍是纯文本（协议兼容）
+        // 引用メッセージ：引用块（含来源）+【注】+ 正文分层显示，原文仍是纯文本（协议兼容）
         for (const q of parsed.quotes) {
           b.appendChild(el('div', 'qblk', '[' + q.label + '] ' + q.text))
           if (q.note) b.appendChild(el('div', 'qnote', '【注】' + q.note))
@@ -1182,21 +1182,21 @@ function itemNodeInner(s, item) {
         else if (img.attachmentId) b.appendChild(attachImgEl(s, img))
       }
       m.appendChild(b)
-      // meta 行：时间 · 复制（右对齐）；失败态在此重试
+      // meta 行：时间 · コピー（右对齐）；失败态在此重试
       const meta = el('div', 'meta-row')
       meta.appendChild(el('span', 'meta-time', fmtTime(item.time)))
-      if (item.pending) meta.appendChild(el('span', 'meta-pending', item.steering ? '插话中…' : '发送中…'))
+      if (item.pending) meta.appendChild(el('span', 'meta-pending', item.steering ? '插话中…' : '送信中…'))
       if (item.steering && !item.pending) meta.appendChild(el('span', 'meta-steer', '⚡ 插话'))
       if (item.text) {
-        const cp = metaIcon('copy', '复制这条消息')
-        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已复制 ✓' : '复制失败，请重试', !ok)) }
+        const cp = metaIcon('copy', 'コピー这条メッセージ')
+        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已コピー ✓' : 'コピー失败，请重试', !ok)) }
         meta.appendChild(cp)
       }
       const uq = metaIcon('quote', '引用这条')
       uq.onclick = () => quoteNow(s.id, '用户', item.text || '[图片]')
       meta.appendChild(uq)
       if (item.failed) {
-        const r = el('span', 'retry-send', '发送失败 · 点按重试')
+        const r = el('span', 'retry-send', '送信失败 · タップして再試行')
         meta.appendChild(r)
         meta.onclick = () => retrySend(s, item)
       }
@@ -1205,16 +1205,16 @@ function itemNodeInner(s, item) {
     }
     case 'assistant': {
       const m = el('div', 'msg bot')
-      if (item.seq != null) m.dataset.seq = String(item.seq)   // 实时 pill 靠它定位「本轮最后一条助手消息」
+      if (item.seq != null) m.dataset.seq = String(item.seq)   // 实时 pill 靠它定位「本轮最后一条助手メッセージ」
       const b = el('div', 'bubble')
       b.innerHTML = md(item.text)
       m.appendChild(b)
-      // meta 行：时间 · 复制 · 思考（左对齐）
+      // meta 行：时间 · コピー · 思考（左对齐）
       const meta = el('div', 'meta-row')
       if (item.time) meta.appendChild(el('span', 'meta-time', fmtTime(item.time)))
       if (item.text) {
-        const cp = metaIcon('copy', '复制这条消息')
-        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已复制 ✓' : '复制失败，请重试', !ok)) }
+        const cp = metaIcon('copy', 'コピー这条メッセージ')
+        cp.onclick = () => { vibrate(8); copyText(item.text, (ok) => toast(ok ? '已コピー ✓' : 'コピー失败，请重试', !ok)) }
         meta.appendChild(cp)
         const sp = metaIcon('speaker', '朗读这条回答')
         sp.classList.add('tts-ico')
@@ -1225,7 +1225,7 @@ function itemNodeInner(s, item) {
       aq.onclick = () => quoteNow(s.id, '助手', item.text)
       meta.appendChild(aq)
       if (item.reasoning && item.reasoning.trim()) meta.appendChild(thinkDot(() => openThink({ text: item.reasoning, live: false })))
-      // 轮级统计 pill（P1 方案）：只挂在轮的最后一条助手消息上（turnStats 由 turn/end 计算）；
+      // 轮级统计 pill（P1 方案）：只挂在轮的最后一条助手メッセージ上（turnStats 由 turn/end 计算）；
       // 运行中的轮由 syncLivePill 往同一位置挂实时 pill，轮结束就地换成正式 pill（不跳位）
       if (item.turnStats) {
         const pill = el('button', 'stat-pill')
@@ -1234,9 +1234,9 @@ function itemNodeInner(s, item) {
         pill.onclick = () => { vibrate(8); openTurnStatsSheet(s, item) }
         meta.appendChild(pill)
       }
-      // 分叉（移植桌面端「轮尾 branch」语义）：只在已完成的轮次上开放；子代理会话不开放
+      // 会話を分岐（移植桌面端「轮尾 branch」语义）：只在已完成的轮次上开放；子代理会話不开放
       if (item.seq != null && !s.subagent && turnComplete(s, item)) {
-        const fk = metaIcon('fork', '从这里分叉：复制「到这条回答为止」的历史成新会话')
+        const fk = metaIcon('fork', '从这里会話を分岐：コピー「到这条回答为止」的历史成新しい会話')
         fk.onclick = (e) => { e.stopPropagation(); vibrate(8); showForkConfirm(fk, s, item) }
         meta.appendChild(fk)
       }
@@ -1254,7 +1254,7 @@ function itemNodeInner(s, item) {
       // 兜底形态：只有思考没有正文，且后面没有内容可挂 → 一行极简入口，不是空泡泡
       const row = el('div', 'think-row')
       row.appendChild(thinkDot(() => openThink({ text: item.reasoning, live: false })))
-      row.appendChild(el('span', null, '思考过程'))
+      row.appendChild(el('span', null, '思考内容'))
       return row
     }
     case 'sys': {
@@ -1266,7 +1266,7 @@ function itemNodeInner(s, item) {
         return d
       }
       if (item.modelSel) {
-        // 模型切换标记行：名字由目录解析（目录没到就用原始 id，目录到了再刷）
+        // モデル切换标记行：名字由目录解析（目录没到就用原始 id，目录到了再刷）
         const dot = el('span', 'msw-dot')
         d.appendChild(dot)
         d.appendChild(el('span', 'msw-tx', '→ ' + modelNameOf(s, item.modelSel)))
@@ -1275,7 +1275,7 @@ function itemNodeInner(s, item) {
       d.appendChild(el('span', null, item.text))
       const sq = el('button', 'meta-ico sys-q')
       sq.type = 'button'
-      sq.setAttribute('aria-label', '引用这条系统消息')
+      sq.setAttribute('aria-label', '引用这条系统メッセージ')
       sq.innerHTML = ICONS.quote
       sq.onclick = () => quoteNow(S.current, '系统', item.text)
       d.appendChild(sq)
@@ -1285,7 +1285,7 @@ function itemNodeInner(s, item) {
   return el('div')
 }
 function renderChatPending(s, sc) {
-  // 排队/插话 chip 已上移至输入框上方的固定条（renderQueueStrip），不再混入对话流
+  // 待ち行列/插话 chip 已上移至输入框上方的固定条（renderQueueStrip），不再混入对话流
   for (const a of s.approvals.values()) {
     const n = approvalNode(s, a); n.id = 'ap-' + cssId(a.approvalId); sc.appendChild(n)
   }
@@ -1310,14 +1310,14 @@ function renderLive(s, rebuild) {
   const text = Object.keys(s.live.texts).sort((a, b) => a - b).map((k) => s.live.texts[k]).join('')
   const reasoningText = s.live.reasoning ? Object.keys(s.live.reasoning).sort((a, b) => a - b).map((k) => s.live.reasoning[k]).join('') : ''
   const thinking = !!reasoningText && !text
-  b.textContent = (thinking ? '正在思考…' : '') + text
+  b.textContent = (thinking ? '考えています…' : '') + text
   b.appendChild(el('span', 'caret'))
   pumpThinkDrawer(s)  // 抽屉开着时实时灌入
-  syncLivePill(s)     // 本轮还没有已结算的助手消息时，实时 pill 挂在直播气泡的 meta 行上
+  syncLivePill(s)     // 本轮还没有已结算的助手メッセージ时，实时 pill 挂在直播气泡的 meta 行上
   if (s.follow) scrollBottom(sc, true)
   if (!nearBottom(sc)) showNewMsgPill()  // 用户在翻历史：不打断阅读，提示有新内容
 }
-/* meta 行通用小图标钮（复制等） */
+/* meta 行通用小图标钮（コピー等） */
 function metaIcon(name, label) {
   const d = el('button', 'meta-ico')
   d.type = 'button'
@@ -1325,7 +1325,7 @@ function metaIcon(name, label) {
   d.innerHTML = ICONS[name] || ''
   return d
 }
-/* 「只有思考没有正文」的 assistant 消息先攒在会话上，交给下一条内容承载（避免空泡泡） */
+/* 「只有思考没有正文」的 assistant メッセージ先攒在会話上，交给下一条内容承载（避免空泡泡） */
 function takeThinkBuf(s) {
   const t = s._thinkBuf || ''
   s._thinkBuf = ''
@@ -1335,7 +1335,7 @@ function takeThinkBuf(s) {
 function thinkDot(onTap, live) {
   const d = el('button', 'meta-ico think' + (live ? ' live' : ''))
   d.type = 'button'
-  d.setAttribute('aria-label', live ? '查看正在进行的思考' : '查看思考过程')
+  d.setAttribute('aria-label', live ? '查看正在进行的思考' : '查看思考内容')
   d.innerHTML = ICONS.think
   d.onclick = (e) => { e.stopPropagation(); vibrate(8); onTap() }
   return d
@@ -1383,16 +1383,16 @@ function settleThinkDrawer(s) {
 }
 
 
-/* ================= 渲染：会话列表 ================= */
+/* ================= 渲染：会話列表 ================= */
 function statusBadge(s) {
-  for (const a of s.approvals.values()) if (!a.outcome) return ['approval', '等待审批']
-  for (const q of s.questions.values()) if (!q.outcome) return ['question', '等待回答']
+  for (const a of s.approvals.values()) if (!a.outcome) return ['approval', '承認待ち']
+  for (const q of s.questions.values()) if (!q.outcome) return ['question', '回答待ち']
   if (s.running) return ['running', '运行中']
-  return ['done', '空闲']
+  return ['done', '待機中']
 }
-/* 会话 → 工作区归属：严格跟随宿主注册表（workspace/follow 的 sessionIds）。
- * 曾有「cwd 相同也归入」的兜底——但宿主对未挂载的会话显示「未归类」（cwd 只是它创建时的目录），
- * 兜底会让手机和桌面口径分叉（实测：cwd 恰好等于某工作区路径的未挂载会话被错误归组）。 */
+/* 会話 → 作業フォルダー归属：严格跟随宿主注册表（workspace/follow 的 sessionIds）。
+ * 曾有「cwd 相同也归入」的兜底——但宿主对未挂载的会話显示「未归类」（cwd 只是它创建时的目录），
+ * 兜底会让手机和桌面口径会話を分岐（实测：cwd 恰好等于某作業フォルダー路径的未挂载会話被错误归组）。 */
 function findWs(s) {
   return S.workspaces.find((w) => (w.sessionIds || []).includes(s.id)) || null
 }
@@ -1409,7 +1409,7 @@ function renderList() {
     .sort((a, b) => b.updatedAt - a.updatedAt)
   // 同步分段控件的选中态
   document.querySelectorAll('.seg-btn').forEach((b) => { const on = b.dataset.mode === S.listMode; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on ? 'true' : 'false') })
-  setListTitle(null)  // 大标题默认「会话」；下钻工作区时再覆盖为工作区名
+  setListTitle(null)  // 大标题默认「会話」；下钻作業フォルダー时再覆盖为作業フォルダー名
   if (S.todoMode) {
     visible = visible.filter(hasPending)
     if (!visible.length) {
@@ -1424,12 +1424,12 @@ function renderList() {
     return
   }
   if (!visible.length) {
-    // 空态按语境分岔：搜了没命中 ≠ 没有会话（后者会被读成「我的会话没了」）；
+    // 空态按语境分岔：搜了没命中 ≠ 没有会話（后者会被读成「我的会話没了」）；
     // 冷启动列表未落地时也不给结论，给加载态
     if (q) {
       const box = el('div', 'empty-state')
-      box.appendChild(el('div', null, '没有标题或路径含「' + q + '」的会话'))
-      box.appendChild(el('div', 'empty-sub', '搜索范围：标题与工作区路径，暂不覆盖消息内容'))
+      box.appendChild(el('div', null, '没有标题或路径含「' + q + '」的会話'))
+      box.appendChild(el('div', 'empty-sub', '搜索范围：标题与作業フォルダー路径，暂不覆盖メッセージ内容'))
       const clear = el('button', 'empty-clear', '清除搜索')
       clear.type = 'button'
       clear.onclick = () => { const inp = $('#search'); if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })) } vibrate(8) }
@@ -1438,26 +1438,26 @@ function renderList() {
       return
     }
     if (!S.listLoaded) {
-      wrap.appendChild(el('div', 'empty-state', '正在加载会话…'))
+      wrap.appendChild(el('div', 'empty-state', '正在加载会話…'))
       return
     }
-    wrap.appendChild(el('div', 'empty-state', '还没有会话\n点右下角 ＋ 新建'))
+    wrap.appendChild(el('div', 'empty-state', '还没有会話\n点右下角 ＋ 新建'))
     return
   }
-  // 「继续上次会话」置顶入口已移除：两级工作区视图 + 「最近活跃」时间视图都能一步直达最近对话
-  // 搜索结果是跨工作区的检索：平铺 + 卡片标注工作区，比钻取更直接
+  // 「继续上次会話」置顶入口已移除：两级作業フォルダー视图 + 「最近の会話」时间视图都能一步直达最近对话
+  // 搜索结果是跨作業フォルダー的检索：平铺 + 卡片标注作業フォルダー，比钻取更直接
   if (q) {
     for (const s of visible) wrap.appendChild(sessionCard(s, true))
     return
   }
-  // 按时间视图：全部会话平铺、按最近活跃降序，卡片标注所属工作区
+  // 按时间视图：全部会話平铺、按最近の会話降序，卡片标注所属作業フォルダー
   if (S.listMode === 'time') {
     for (const s of visible) wrap.appendChild(sessionCard(s, true))
     return
   }
-  /* 按工作区视图：两级结构 ——
-     第一级只显示工作区行（不铺开里面的对话），按组内最近活跃降序；
-     点进去才看到该工作区下的会话卡，同样按最近活跃降序。 */
+  /* 作業フォルダー別视图：两级结构 ——
+     第一级只显示作業フォルダー行（不铺开里面的对话），按组内最近の会話降序；
+     点进去才看到该作業フォルダー下的会話卡，同样按最近の会話降序。 */
   const byWs = new Map()
   const ungrouped = []
   for (const s of visible) {
@@ -1469,16 +1469,16 @@ function renderList() {
     .map((ws) => ({ id: ws.workspaceId, name: ws.title || ws.path, iconName: 'folder', list: byWs.get(ws.workspaceId) }))
     .filter((x) => x.list && x.list.length)
   if (ungrouped.length) wsSorted.push({ id: '__other__', name: '未分类', iconName: 'chat', list: ungrouped })
-  // 工作区本身按「组内最近活跃」排序（visible 已按 updatedAt 降序，每组第一条即最新）
+  // 作業フォルダー本身按「组内最近の会話」排序（visible 已按 updatedAt 降序，每组第一条即最新）
   wsSorted.sort((a, b) => b.list[0].updatedAt - a.list[0].updatedAt)
-  // 下钻态：工作区没了（会话全部归档等）就退回列表
+  // 下钻态：作業フォルダー没了（会話全部アーカイブ等）就退回列表
   let drill = wsSorted.find((x) => x.id === S.wsDrill)
   if (S.wsDrill && !drill) S.wsDrill = null
   if (drill) {
     const back = el('div', 'ws-back')
     back.setAttribute('role', 'button'); back.setAttribute('tabindex', '0')
     back.appendChild(el('span', 'wb-arrow', '‹'))
-    back.appendChild(el('span', null, '全部工作区'))
+    back.appendChild(el('span', null, '全部作業フォルダー'))
     const backFn = () => { vibrate(8); S.wsDrill = null; renderList(); listScrollTop() }
     back.onclick = backFn
     back.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); backFn() } }
@@ -1490,12 +1490,12 @@ function renderList() {
   setListTitle(null)
   for (const entry of wsSorted) wrap.appendChild(wsRow(entry))
 }
-/* 工作区行：图标 + 名称 + 最新会话 · 右侧会话数/时间，点按下钻 */
+/* 作業フォルダー行：图标 + 名称 + 最新しい会話 · 右侧会話数/时间，点按下钻 */
 function wsRow(entry) {
   const row = el('div', 'ws-row')
   row.setAttribute('role', 'button')
   row.setAttribute('tabindex', '0')
-  row.setAttribute('aria-label', entry.name + '，' + entry.list.length + ' 个会话')
+  row.setAttribute('aria-label', entry.name + '，' + entry.list.length + ' 个会話')
   const ico = el('div', 'wsr-ico')
   ico.appendChild(icon(entry.iconName, 18))
   const mid = el('div'); mid.style.minWidth = '0'; mid.style.flex = '1'
@@ -1503,7 +1503,7 @@ function wsRow(entry) {
   mid.appendChild(el('div', 'wsr-sub', sessTitle(entry.list[0])))
   const side = el('div', 'wsr-side')
   side.appendChild(el('div', 'wsr-time', fmtTime(entry.list[0].updatedAt)))
-  side.appendChild(el('div', 'wsr-n', entry.list.length + ' 会话'))
+  side.appendChild(el('div', 'wsr-n', entry.list.length + ' 会話'))
   const chev = el('span', 'wsr-chev', '›')
   row.append(ico, mid, side, chev)
   const open = () => { vibrate(8); S.wsDrill = entry.id; renderList(); listScrollTop() }
@@ -1511,10 +1511,10 @@ function wsRow(entry) {
   row.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }
   return row
 }
-/* 列表大标题：下钻时显示工作区名，否则回到「会话」 */
+/* 列表大标题：下钻时显示作業フォルダー名，否则回到「会話」 */
 function setListTitle(name) {
   const t = document.querySelector('#view-list .big-title')
-  if (t) t.textContent = name || '会话'
+  if (t) t.textContent = name || '会話'
 }
 function listScrollTop() {
   const sc = $('#list-scroll')
@@ -1538,12 +1538,12 @@ function sessionCard(s, showWs) {
   b.appendChild(el('span', null, label))
   row3.appendChild(b)
   if (s.agentPreset) row3.appendChild(el('span', 's-meta', s.agentPreset))
-  // 时间视图：平铺无分组，卡片上标注所属工作区，保持上下文可辨
+  // 时间视图：平铺无分组，卡片上标注所属作業フォルダー，保持上下文可辨
   if (showWs) {
     const ws = findWs(s)
     if (ws) {
       const name = ws.title || (ws.path || '').split('/').filter(Boolean).slice(-2).join('/')
-      row3.appendChild(el('span', 's-ws', name || '工作区'))
+      row3.appendChild(el('span', 's-ws', name || '作業フォルダー'))
     }
   }
   card.appendChild(row3)
@@ -1552,7 +1552,7 @@ function sessionCard(s, showWs) {
   card.onclick = () => { if (swipeState.openWrap) { closeSwipe() ; return } open() }
   card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }
 
-  // ---- 左滑操作（iOS Mail 式）：滑出 重命名/分叉/停止/归档 ----
+  // ---- 左滑操作（iOS Mail 式）：滑出 名前を変更/会話を分岐/停止/アーカイブ ----
   const wrap = el('div', 'swipe-wrap')
   const actions = el('div', 'swipe-actions')
   const mkAct = (icoName, label, color, fn) => {
@@ -1568,17 +1568,17 @@ function sessionCard(s, showWs) {
     return btn
   }
   mkAct('pencil', '改名', 'var(--accent)', () => openSessionMenu(s.id, 0, 0, true))
-  mkAct('fork', '分叉', 'var(--purple)', async () => {
+  mkAct('fork', '会話を分岐', 'var(--purple)', async () => {
     vibrate(8)
-    try { toast('正在分叉…'); const v = await rpc('session/fork', { request: { sessionId: s.id } }); toast('已分叉 ✓'); location.hash = '#/s/' + v.sessionId; flushForkTail(v.sessionId) } catch (e) { toast('分叉失败：' + e.message, true) }
+    try { toast('正在会話を分岐…'); const v = await rpc('session/fork', { request: { sessionId: s.id } }); toast('已会話を分岐 ✓'); location.hash = '#/s/' + v.sessionId; flushForkTail(v.sessionId) } catch (e) { toast('会話を分岐失败：' + e.message, true) }
   })
   if (s.running) mkAct('stop', '停止', 'var(--red)', async () => {
     vibrate(8)
-    try { await rpc('session/cancel', { request: { sessionId: s.id } }); s.running = false; renderList(); toast('已发送停止 ■') } catch (e) { toast(e.message, true) }
+    try { await rpc('session/cancel', { request: { sessionId: s.id } }); s.running = false; renderList(); toast('已送信停止 ■') } catch (e) { toast(e.message, true) }
   })
-  mkAct('archive', '归档', 'var(--text-3)', async () => {
+  mkAct('archive', 'アーカイブ', 'var(--text-3)', async () => {
     vibrate(8)
-    try { const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } }); if (av && Array.isArray(av.archivedSessionIds)) S.archived = new Set(av.archivedSessionIds); S.sessions.delete(s.id); renderList(); toast('已归档（桌面端可恢复）') } catch (e) { toast('归档失败：' + e.message, true) }
+    try { const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } }); if (av && Array.isArray(av.archivedSessionIds)) S.archived = new Set(av.archivedSessionIds); S.sessions.delete(s.id); renderList(); toast('已アーカイブ（桌面端可恢复）') } catch (e) { toast('アーカイブ失败：' + e.message, true) }
   })
   wrap.append(actions, card)
   initSwipe(wrap, card, actions)
@@ -1636,7 +1636,7 @@ function initSwipe(wrap, card, actions) {
   card.addEventListener('touchend', finish)
   card.addEventListener('touchcancel', finish)
 }
-/* 长按会话卡 → 操作单（重命名 / 分叉 / 归档 / 停止），对齐桌面能力 */
+/* 长按会話卡 → 操作单（名前を変更 / 会話を分岐 / アーカイブ / 停止），对齐桌面能力 */
 let sessMenuTimer = null
 function initSessionLongPress(sc) {
   if (!sc) return
@@ -1683,19 +1683,19 @@ function openSessionMenu(sid, x, y, expandRename) {
       s._titleAt = Date.now()   // 改名后短窗内本地胜出：在途的旧 title 投影/列表响应不得把它改回去（保存无效 bug）
       closeSessionMenu()
       renderList()
-      toast('已重命名 ✓')
-    } catch (e) { toast('重命名失败：' + e.message, true) }
+      toast('已名前を変更 ✓')
+    } catch (e) { toast('名前を変更失败：' + e.message, true) }
   })
   wire('#sess-a-fork', async () => {
     vibrate(8)
     try {
       closeSessionMenu()
-      toast('正在分叉…')
+      toast('正在会話を分岐…')
       const v = await rpc('session/fork', { request: { sessionId: sid } })
-      toast('已分叉 ✓ 正在打开')
+      toast('已会話を分岐 ✓ 正在打开')
       location.hash = '#/s/' + v.sessionId
       flushForkTail(v.sessionId)
-    } catch (e) { toast('分叉失败：' + e.message, true) }
+    } catch (e) { toast('会話を分岐失败：' + e.message, true) }
   })
   wire('#sess-a-archive', async () => {
     vibrate(8)
@@ -1705,8 +1705,8 @@ function openSessionMenu(sid, x, y, expandRename) {
       S.sessions.delete(sid)
       closeSessionMenu()
       renderList()
-      toast('已归档（可在桌面端恢复）')
-    } catch (e) { toast('归档失败：' + e.message, true) }
+      toast('已アーカイブ（可在桌面端恢复）')
+    } catch (e) { toast('アーカイブ失败：' + e.message, true) }
   })
   wire('#sess-a-stop', async () => {
     vibrate(8)
@@ -1715,7 +1715,7 @@ function openSessionMenu(sid, x, y, expandRename) {
       s.running = false
       closeSessionMenu()
       renderList()
-      toast('已发送停止 ■')
+      toast('已送信停止 ■')
     } catch (e) { toast(e.message, true) }
   })
   ovSet('sess-ov', true); sheet.classList.add('open')
@@ -1745,7 +1745,7 @@ function refreshBadges() {
 }
 
 /* ================= 数据加载 ================= */
-/* 新版没有 workspace.list：从 session/list 的 cwd 归并出工作区分组 */
+/* 新版没有 workspace.list：从 session/list 的 cwd 归并出作業フォルダー分组 */
 function deriveWorkspaces() {
   const map = new Map()
   for (const s of S.sessions.values()) {
@@ -1764,14 +1764,14 @@ function applyListValues(s, values) {
     if (s._titleAt && Date.now() - s._titleAt < 5000 && values.title !== s.title) return   // 刚改过名：在途旧 title 一律忽略（真值已由改名 RPC 落地）
     const changed = s.title !== values.title
     s.title = values.title
-    // 列表刷新拿到新标题时，若正开着该会话，同步顶栏（否则分叉后 loadBase 先到、投影去重，
-    // header 会一直卡在 openSession 那一刻读到的"新会话"）
+    // 列表再読み込み拿到新しいタイトル时，若正开着该会話，同步顶栏（否则会話を分岐后 loadBase 先到、投影去重，
+    // header 会一直卡在 openSession 那一刻读到的"新しい会話"）
     if (changed && S.current === s.id) { const t = $('#chat-title'); if (t) t.textContent = sessTitle(s) }
   }
   if (values.permissions && Array.isArray(values.permissions.options)) s.permissions = values.permissions
   if ('goal' in values) {
     const prev = s.goal
-    s.goal = values.goal || null   // null＝目标已清除
+    s.goal = values.goal || null   // null＝目標已清除
     if (S.current === s.id && JSON.stringify(prev) !== JSON.stringify(s.goal)) renderGoalBanner(s)
   }
   if (values.imageLimits) s.imageLimits = values.imageLimits
@@ -1780,10 +1780,10 @@ function applyListValues(s, values) {
   applyStats(s, values)
 }
 
-/* ================= 任务清单（todos 投影 → 顶部悬置条） =================
+/* ================= タスク一覧（todos 投影 → 顶部悬置条） =================
    宿主 dsh-tool-todo 把 todo/write 的全量快照存成 todos 投影，并在 turn/start 时清空，
    所以「这一轮的步骤清单」直接读投影即可：不用自己合并增量，也不会被翻旧历史覆盖。
-   显示位置只有一个：会话页导航栏下方的常驻条（对话时间线里不再插卡片）。 */
+   显示位置只有一个：会話页导航栏下方的常驻条（对话时间线里不再插卡片）。 */
 function setTodos(s, list) {
   const next = Array.isArray(list) && list.length ? list.map((t) => ({ content: String(t.content || ''), status: t.status })) : null
   const same = JSON.stringify(next) === JSON.stringify(s.todos)
@@ -1821,7 +1821,7 @@ function renderTaskBar(s) {
   if (cnt) cnt.textContent = allDone ? '✓' : done + '/' + total
   const fill = $('#tb-fill')
   if (fill) fill.style.width = Math.round(done / total * 100) + '%'
-  // 全部完成 → 3 秒后自己收成一条细线（点条/点会话菜单仍可看全量）
+  // 全部完成 → 3 秒后自己收成一条细线（点条/点会話菜单仍可看全量）
   if (allDone && !s._todoCollapsed && !s._todoTimer) {
     s._todoTimer = setTimeout(() => {
       s._todoTimer = null
@@ -1834,7 +1834,7 @@ function renderTaskBar(s) {
   }
   if (!allDone && s._todoTimer) { clearTimeout(s._todoTimer); s._todoTimer = null }
 }
-/* 任务清单底部抽屉 */
+/* タスク一覧底部抽屉 */
 let taskSheetSession = null
 function openTaskSheet(s) {
   if (!s || !s.todos || !s.todos.length) return
@@ -1869,7 +1869,7 @@ function renderTaskSheet(s) {
     body.appendChild(row)
   }
 }
-/* 统计投影落地（上下文压力/构成/累计/运行统计），变更时刷新压力条 */
+/* 统计投影落地（上下文压力/构成/累计/运行统计），变更时再読み込み压力条 */
 function applyStats(s, values) {
   let changed = false
   if (values.contextPressure && typeof values.contextPressure.contextWindow === 'number') { s.ctxPressure = values.contextPressure; changed = true }
@@ -1883,14 +1883,14 @@ function applyStats(s, values) {
   }
 }
 /* ---- 列表新鲜度：预览脏标记（发过问题还没被回答文本覆盖）与未读（看过到哪） ----
- * 预览滞后根因：lastPreview 只在 foldEvent 里更新，而后台完成的会话不进 follow 流——
+ * 预览滞后根因：lastPreview 只在 foldEvent 里更新，而后台完成的会話不进 follow 流——
  * 列表上就一直停在你提问的文本，直到点进去折叠历史才换。 */
 function prevDirtyGet() { try { return new Set(JSON.parse(localStorage.getItem('dshm-prev-dirty') || '[]')) } catch (e) { return new Set() } }
 function prevDirtyMark(sid) { const st = prevDirtyGet(); if (st.has(sid)) return; st.add(sid); try { localStorage.setItem('dshm-prev-dirty', JSON.stringify([...st].slice(-60))) } catch (e) {} }
 function prevDirtyClear(sid) { const st = prevDirtyGet(); if (!st.has(sid)) return; st.delete(sid); try { localStorage.setItem('dshm-prev-dirty', JSON.stringify([...st])) } catch (e) {} }
 function seenGet() { try { return JSON.parse(localStorage.getItem('dshm-seen') || '{}') } catch (e) { return {} } }
 function seenMark(sid, seq) { if (!sid || !seq) return; const m = seenGet(); if (m[sid] >= seq) return; m[sid] = seq; try { localStorage.setItem('dshm-seen', JSON.stringify(m)) } catch (e) {} }
-/* 一次性迁移（v1.9.9）：未读标记上线时所有历史会话都被当成未读——首启把现有全部标为已读，
+/* 一次性迁移（v1.9.9）：未读标记上线时所有历史会話都被当成未读——首启把现有全部标为已读，
    之后新完成的才是未读。用独立标志保证只跑一次。 */
 function seenBootstrap() {
   try { if (localStorage.getItem('dshm-seen-boot')) return } catch (e) { return }
@@ -1899,13 +1899,13 @@ function seenBootstrap() {
   try { localStorage.setItem('dshm-seen', JSON.stringify(m)); localStorage.setItem('dshm-seen-boot', '1') } catch (e) {}
 }
 function isUnread(s) { const m = seenGet(); return !s.running && s.id !== S.current && (s.asOfSeq || 0) > (m[s.id] || 0) }
-function markSeenNow(s) {   // 以「当前已知最大 seq」记已读（打开/离开会话时用）
+function markSeenNow(s) {   // 以「当前已知最大 seq」记已读（打开/离开会話时用）
   if (!s || !s.id) return
   let mx = s.asOfSeq || 0
   for (const it of s.items || []) if (it.seq > mx) mx = it.seq
   seenMark(s.id, mx)
 }
-/* 补拉尾部：取最后一条有字的助手消息当列表预览 */
+/* 补拉尾部：取最后一条有字的助手メッセージ当列表预览 */
 async function refreshPreview(s, asOf) {
   if (s._tailFetching) return
   s._tailFetching = true
@@ -1915,7 +1915,7 @@ async function refreshPreview(s, asOf) {
       const list = await rpc('session/list', { _request: { limit: 40 } })
       const it = (list.items || []).find((x) => x.sessionId === s.id)
       asOf = (it && it.projections && it.projections.asOfSeq) || 0
-      if (asOf) { s.asOfSeq = asOf; renderListSoon() }   // 未读判断依赖 asOfSeq，顺带刷新
+      if (asOf) { s.asOfSeq = asOf; renderListSoon() }   // 未读判断依赖 asOfSeq，顺带再読み込み
     }
     if (!asOf) { s._tailFetching = false; return }
     const pg = await rpc('session/page', { request: { address: { kind: 'session', sessionId: s.id }, throughSeq: asOf, maxMessages: 16 } })
@@ -1945,16 +1945,16 @@ async function loadBase() {
       s.updatedAt = item.updatedAt || 0
       s.asOfSeq = (item.projections && item.projections.asOfSeq) || 0
       s.running = !!item.running
-      // 后台跑完了 / 上一条还是提问文本：补拉尾部把预览换成回答（会话正开着的不用，fold 会实时换）
+      // 后台跑完了 / 上一条还是提问文本：补拉尾部把预览换成回答（会話正开着的不用，fold 会实时换）
       if (S.current !== item.sessionId && !s.running && s.asOfSeq > 0 && (wasRunning || prevDirtyGet().has(item.sessionId))) refreshPreview(s, s.asOfSeq)
       s.blank = !!item.blank
       s.cwd = item.cwd || ''
       s.agentPreset = item.agentPreset || null
       applyListValues(s, item.projections && item.projections.values)
     }
-    // workspace/follow 已提供权威分组（含真实标题/顺序/归档）；仅在还没有时退回 cwd 推导
+    // workspace/follow 已提供权威分组（含真实标题/顺序/アーカイブ）；仅在还没有时退回 cwd 推导
     if (!S.workspaces.length) deriveWorkspaces()
-    seenBootstrap()   // 列表首次落地后：现有会话一次性全部记为已读（此后新完成的才标未读）
+    seenBootstrap()   // 列表首次落地后：现有会話一次性全部记为已读（此后新完成的才标未读）
     S.listLoaded = true
     setConn('online')
     renderList()
@@ -1965,7 +1965,7 @@ async function loadBase() {
 }
 /* 历史加载：打开（或重开）follow 流，等首帧 snapshot 折叠完成 */
 async function loadHistory(s) {
-  // 子代理会话且父地址未知：先刷一次列表拿 parentSessionId，否则 follow 必报 agent-busy
+  // 子代理会話且父地址未知：先刷一次列表拿 parentSessionId，否则 follow 必报 agent-busy
   if (s.subagent && !s.parentSessionId) await loadBase().catch(() => {})
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { s._resolveLoad = null; s._rejectLoad = null; reject(new Error('加载超时')) }, 12000)
@@ -1998,7 +1998,7 @@ function restoreAnchor(sc, a) {
   if (a.gap != null) { sc.scrollTop = sc.scrollHeight - a.gap; settleAnchor(sc) }                    // 兜底：锚点条目已被换掉
 }
 /* 还原后再校一次：个别时序下（流式内容增长期间）还原落位后布局还会再变，出现几十~百来像素的漂移。
-   短窗内按锚点静默补回；用户一旦滚动，锚点期望值已被滚动监听刷新，天然不会跟用户抢。 */
+   短窗内按锚点静默补回；用户一旦滚动，锚点期望值已被滚动监听再読み込み，天然不会跟用户抢。 */
 function settleAnchor(sc) {
   if (!sc || !sc._anchor || !sc._anchor.key) return
   // 自己留一份期望：sc._anchor 会被后续渲染重新捕获（渲染锚定在漂移后的位置，期望值就被「洗白」了）
@@ -2025,14 +2025,14 @@ function settleAnchor(sc) {
   requestAnimationFrame(loop)
 }
 /* 翻页后新内容里的图片解码撑高会把正在读的位置顶走（不认识宽高的图先按占位高度排版）。
-   2.5s 内按锚点把位移吃掉；用户自己滚动时会刷新锚点期望值，所以不会跟用户抢滚动。 */
+   2.5s 内按锚点把位移吃掉；用户自己滚动时会再読み込み锚点期望值，所以不会跟用户抢滚动。 */
 function reanchorAfterLoad(sc) {
   const a = sc && sc._anchor
   if (!a || !a.key || Date.now() - (a.at || 0) > 2500) return
   const n = sc.querySelector('[data-k="' + a.key + '"]')
   if (!n) return
   const d = n.getBoundingClientRect().top - a.top
-  // 上限 400：图片解码撑高一般 ≤ 一张图；几百像素的巨额偏差多半是锚点期望值过期（滚动事件还没刷新到），
+  // 上限 400：图片解码撑高一般 ≤ 一张图；几百像素的巨额偏差多半是锚点期望值过期（滚动事件还没再読み込み到），
   // 无上限照补会拿旧期望把视图拽回去（实测出现过 +529 的拽动）
   if (Math.abs(d) > 1 && Math.abs(d) <= 400) { sc._selfScrollAt = Date.now(); sc.scrollTop += d }
 }
@@ -2087,7 +2087,7 @@ async function loadEarlier(s, opts) {
     const older = []
     const tmp = { items: older, callArgs: s.callArgs, live: null, _todoCalls: new Set(), _pendingCalls: [], _thinkBuf: '' }
     for (const rec of v.records || []) foldEvent(tmp, rec.event || rec)
-    // 这一页末尾若停在「只有思考没有正文」的消息上，它属于下一页的第一条内容，补给那个条目
+    // 这一页末尾若停在「只有思考没有正文」的メッセージ上，它属于下一页的第一条内容，补给那个条目
     const dangling = tmp._thinkBuf || ''
     let patchedHead = null
     if (dangling.trim()) {
@@ -2125,7 +2125,7 @@ async function loadEarlier(s, opts) {
 
 /* ================= 实时流（WebSocket 下行） ================= */
 /* 登录过期（401）：独立 PWA 的 cookie 与 Safari 可能不共享/已过期，
-   表现成"界面看着活着（WS 是旧连接）但发消息永远发不出去"。给出明确出路而不是让它看起来像网络问题。 */
+   表现成"界面看着活着（WS 是旧连接）但发メッセージ永远发不出去"。给出明确出路而不是让它看起来像网络问题。 */
 function markAuthExpired() {
   if (S.authExpired) return
   S.authExpired = true
@@ -2141,21 +2141,21 @@ function renderAuthBanner() {
     document.body.appendChild(el2)
   }
   el2.textContent = ''
-  el2.appendChild(document.createTextNode('登录已过期：请在 Safari 重新打开带 token 的访问链接，然后回到本页刷新。'))
+  el2.appendChild(document.createTextNode('認証切れです。Safariで認証リンクを開き直し、この画面を再読み込みしてください。'))
   const btn = document.createElement('button')
   btn.type = 'button'
-  btn.textContent = '刷新'
+  btn.textContent = '再読み込み'
   btn.onclick = () => location.reload()
   el2.appendChild(btn)
 }
-/* 手动重连：列表页连接胶囊与会话页断线条共用；后台另有 15s 轮询兜底 */
+/* 手动重连：列表页连接胶囊与会話页断线条共用；后台另有 15s 轮询兜底 */
 function manualReconnect() {
   if (S.connState === 'online') return
-  toast('正在重连…')
+  toast('再接続中…')
   Mux.reconnect()
   loadBase()
 }
-/* 会话页断线条：断线时显示在输入区上方，点按立即重连（原来只能等或退回列表） */
+/* 会話页断线条：断线时显示在输入区上方，点按再接続（原来只能等或退回列表） */
 function renderOfflineStrip() {
   const strip = $('#offline-strip')
   if (!strip) return
@@ -2164,8 +2164,8 @@ function renderOfflineStrip() {
   if (!off) return
   strip.textContent = ''
   strip.appendChild(el('span', 'st-ico', '⚠'))
-  strip.appendChild(el('span', 'st-tx', '连接已断开 · 后台每 15 秒自动重试'))
-  const btn = el('button', 'st-x', '立即重连')
+  strip.appendChild(el('span', 'st-tx', '切断中。15秒ごとに再接続します。'))
+  const btn = el('button', 'st-x', '再接続')
   btn.type = 'button'
   btn.onclick = () => { vibrate(8); manualReconnect() }
   strip.appendChild(btn)
@@ -2176,14 +2176,14 @@ function setConn(state) {
   const pill = $('#conn-pill')
   if (pill) {
     pill.classList.toggle('off', state !== 'online')
-    pill.querySelector('span:last-child').textContent = state === 'online' ? '已连接' : state === 'offline' ? '已断开 · 点按重连' : '连接中…'
+    pill.querySelector('span:last-child').textContent = state === 'online' ? '接続中' : state === 'offline' ? '切断中 · タップで再接続' : '接続しています…'
   }
   if (S.current) refreshChatChrome(sess(S.current))
 }
 /* ================= 实时流（/api/remote.mux 单 WS 多路复用） ================= */
 /* 三条逻辑流：
  *   session/control — 全局队列/jobs/投影广播（首帧 baseline）
- *   session/follow  — 当前会话的事件 + 流式回复（首帧 snapshot）
+ *   session/follow  — 当前会話的事件 + 流式回复（首帧 snapshot）
  *   $events         — api-session/* 通知 + 审批/提问 waterfall（首帧 ready 带 clientId） */
 const Mux = {
   ws: null, retry: 0, timer: null, closed: false, everConnected: false,
@@ -2229,7 +2229,7 @@ const Mux = {
           if (lost > 0) { S.staleNotice = { n: lost, at: Date.now() }; renderStaleStrip() }
         }, 2500)
       }
-      // 清掉的审批卡要从当前会话里真正消失（否则卡上「允许/拒绝」还点得到，与提示条自相矛盾）
+      // 清掉的审批卡要从当前会話里真正消失（否则卡上「允许/拒否」还点得到，与提示条自相矛盾）
       if (S.current) { const cur = sess(S.current); if (cur.loaded) renderChat(cur) }
       this.streams.clear()
       this.openAll()
@@ -2247,11 +2247,11 @@ const Mux = {
       } else if (m.type === 'error') {
         this.streams.delete(m.streamId)
         if (meta.kind === 'follow' && meta.sessionId) {
-          const msg = (m.error && m.error.message) || '会话流错误'
+          const msg = (m.error && m.error.message) || '会話流错误'
           const fs2 = sess(meta.sessionId)
-          // follow 流被宿主拒绝（如地址错误）：立刻结束「加载中」并给出可见的可重试错误态
+          // follow 流被宿主拒否（如地址错误）：立刻结束「加载中」并给出可见的可重试错误态
           if (fs2._rejectLoad) fs2._rejectLoad(new Error(msg))
-          if (S.current === meta.sessionId) toast('会话流错误：' + msg, true)
+          if (S.current === meta.sessionId) toast('会話流错误：' + msg, true)
         }
       } else if (m.type === 'end') {
         this.streams.delete(m.streamId)
@@ -2277,7 +2277,7 @@ const Mux = {
     this.open('workspace', 'workspace/follow', {})
     if (this.followId) this.open('follow', 'session/follow', { request: { address: followAddress(this.followId), assistantStream: true } }, { sessionId: this.followId })
   },
-  /* 切换/重开 follow 流；force=true 时即使目标相同也重开（重取 snapshot） */
+  /* 切换/重开 follow 流；force=true 时即使目標相同也重开（重取 snapshot） */
   setFollow(sessionId, force) {
     const cur = [...this.streams.entries()].find(([, m]) => m.kind === 'follow')
     if (!force && this.followId === sessionId && cur) return true
@@ -2297,7 +2297,7 @@ const Mux = {
     this.connect()
   },
 }
-/* follow 地址：子代理会话必须用父地址，否则宿主报 agent-busy（修「点进去什么都看不见」） */
+/* follow 地址：子代理会話必须用父地址，否则宿主报 agent-busy（修「点进去什么都看不见」） */
 function followAddress(id) {
   const s = S.sessions.get(id)
   if (s && s.subagent && s.parentSessionId) {
@@ -2327,7 +2327,7 @@ function applyProjection(s, values) {
   if ('todos' in values) setTodos(s, values.todos)
   applyStats(s, values)
 }
-/* ---- workspace 流：归档集合 + 真实工作区分组（修「归档后列表不消失」） ---- */
+/* ---- workspace 流：アーカイブ集合 + 真实作業フォルダー分组（修「アーカイブ后列表不消失」） ---- */
 Mux.handlers.workspace = (v) => {
   if (v.type === 'baseline') {
     const val = v.value || v
@@ -2411,8 +2411,8 @@ Mux.handlers.events = (v) => {
         if (!S.workspaces.length) deriveWorkspaces()
         renderList()
         if (wasCurrent) {
-          // 正在看的会话被（其它端）删除：提示并退回列表，避免留下僵尸聊天页
-          toast('该会话已被删除', true)
+          // 正在看的会話被（其它端）删除：提示并退回列表，避免留下僵尸聊天页
+          toast('该会話已被删除', true)
           location.hash = '#/'
         }
         break
@@ -2428,7 +2428,7 @@ Mux.handlers.events = (v) => {
         break
       }
       case 'goal/activation-changed': {
-        // 其它端（桌面）改了目标：跟 control 投影流不同，goal 走这条事件
+        // 其它端（桌面）改了目標：跟 control 投影流不同，goal 走这条事件
         const ev = a[0] || {}
         if (ev.sessionId) {
           const s2 = sess(ev.sessionId)
@@ -2450,8 +2450,8 @@ Mux.handlers.events = (v) => {
       const s = sess(v.agentId)
       s.approvals.set(v.eventId, { eventId: v.eventId, approvalId: v.eventId, rpcId: v.eventId, toolName: req.toolName || '工具', callId: req.callId, reason: req.reason, outcome: null })
       vibrate([80, 60, 80])
-      // 已经在该会话里：卡片就在眼前，toast 不带跳转（也不再压住卡片按钮）
-      toast('⚠️ ' + (req.toolName || '工具') + ' 等待审批' + (S.current === s.id ? '' : ' — 点按查看'), S.current === s.id ? undefined : { sessionId: s.id })
+      // 已经在该会話里：卡片就在眼前，toast 不带跳转（也不再压住卡片按钮）
+      toast('⚠️ ' + (req.toolName || '工具') + ' 承認待ち' + (S.current === s.id ? '' : ' — 点按查看'), S.current === s.id ? undefined : { sessionId: s.id })
       if (S.current === s.id) renderChat(s, true)
       refreshBadges(); renderList()
     } else if (v.event === 'user-questions/request') {
@@ -2466,7 +2466,7 @@ Mux.handlers.events = (v) => {
     return
   }
   if (v.type === 'cancel') {
-    // Host 端已了结该 waterfall（其它端已答复 / 已取消）：本地卡片转为已处理
+    // Host 端已了结该 waterfall（其它端已答复 / キャンセル済み）：本地卡片转为処理済み
     for (const s of S.sessions.values()) {
       const ap = s.approvals.get(v.eventId)
       if (ap && !ap.outcome) { ap.outcome = 'decided-elsewhere'; if (S.current === s.id) rerenderApproval(s, ap) }
@@ -2476,7 +2476,7 @@ Mux.handlers.events = (v) => {
     refreshBadges(); renderList()
   }
 }
-/* ---- follow 流：当前会话的事件 + 流式回复 ---- */
+/* ---- follow 流：当前会話的事件 + 流式回复 ---- */
 Mux.handlers.follow = (v, meta) => {
   const s = sess(meta.sessionId)
   if (v.type === 'snapshot') {
@@ -2498,7 +2498,7 @@ Mux.handlers.follow = (v, meta) => {
     renderListSoon()
     if (s._resolveLoad) { const r = s._resolveLoad; s._resolveLoad = null; r() }
   } else if (v.type === 'projection') {
-    // 会话流同样推「单键单值」投影帧：todos 就靠它实时更新顶部悬置条
+    // 会話流同样推「单键单值」投影帧：todos 就靠它实时更新顶部悬置条
     applyProjectionFrame(v)
   } else if (v.type === 'event') {
     s.updatedAt = Date.now()
@@ -2574,7 +2574,7 @@ function updateTabs() {
   const fab = $('#fab-new')
   if (fab) fab.style.display = (h === '#/') ? '' : 'none'
 }
-/* 输入草稿：按会话持久化，切走/被杀后台不丢 */
+/* 输入草稿：按会話持久化，切走/被杀后台不丢 */
 const draftKey = (id) => 'dshm-draft:' + id
 function restoreDraft(id) {
   const input = $('#chat-input')
@@ -2608,26 +2608,26 @@ async function openSession(id, force) {
       return
     }
   } else {
-    // 已有内容：把 follow 流切到本会话（后台继续接收事件）
+    // 已有内容：把 follow 流切到本会話（后台继续接收事件）
     Mux.setFollow(id)
-    markSeenNow(s)   // 修复：已加载过的会话再次打开也要记已读——否则新事件带来的蓝点点进去也不消
+    markSeenNow(s)   // 修复：已加载过的会話再次打开也要记已读——否则新事件带来的蓝点点进去也不消
   }
   renderChat(s, true)
   refreshChatChrome(s)
   restoreDraft(id)
 }
 function reloadCurrent() {
-  // 重连后的强制刷新：保留在 chat 视图（不重复进入动画）
+  // 重连后的强制再読み込み：保留在 chat 视图（不重复进入动画）
   if (!S.current) return
   const s = sess(S.current)
   loadHistory(s).then(() => renderChat(s)).catch(() => {})
 }
 function refreshChatChrome(s) {
-  renderGoalBanner(s)   // 目标横幅：进会话与状态刷新时同步
+  renderGoalBanner(s)   // 目標横幅：进会話与状态再読み込み时同步
   const off = S.connState !== 'online'
   const input = $('#chat-input')
   if (input) {
-    input.dataset.ph = off ? '连接已断开…' : s.running ? '追加指令（steer）…' : '发消息…'
+    input.dataset.ph = off ? '连接已断开…' : s.running ? '追加指令（steer）…' : 'メッセージを入力…'
     input.classList.toggle('off', off)
   }
   const send = $('#send-btn')
@@ -2660,14 +2660,14 @@ function refreshChatChrome(s) {
   renderOfflineStrip()
   renderQuoteStrip()
   renderQueueStrip(s)
-  // 输入框 placeholder 明示发送模式（运行中按设置排队/插话；长按发送反向）
+  // 输入框 placeholder 明示送信模式（运行中按设置待ち行列/插话；长按送信反向）
   const input2 = $('#chat-input')
   if (input2 && !off) {
-    input2.dataset.ph = s.running ? (busyEnter() === 'steer' ? '插话发送…（长按排队）' : '将排队发送…（长按插话）') : '发消息…'
+    input2.dataset.ph = s.running ? (busyEnter() === 'steer' ? '插话送信…（长按待ち行列）' : '将待ち行列送信…（长按插话）') : 'メッセージを入力…'
   }
 }
 /* ---- 上下文压力条（标题栏底边 2px） ---- */
-/* 运行中副标题的「已运行时长」：按秒走。轮起点不在窗口里（长任务会话）就补回来再算 */
+/* 运行中副标题的「已运行时长」：按秒走。轮起点不在窗口里（长任务会話）就补回来再算 */
 let runDurTimer = null
 function refreshRunDur(s) {
   const el = document.querySelector('#chat-sub .run-dur')
@@ -2736,9 +2736,9 @@ function turnSpeed(timing) {
   return timing && timing.hasDecode && timing.decodeMs > 0 ? timing.decodeTokens / (timing.decodeMs / 1000) : null
 }
 /* ---- 运行中的轮：实时统计 pill ---- */
-/* 轮结束时正式 pill 由本轮最后一条助手消息的 meta 行承载，位置与实时 pill 相同，不会跳位 */
+/* 轮结束时正式 pill 由本轮最后一条助手メッセージ的 meta 行承载，位置与实时 pill 相同，不会跳位 */
 let liveTicker = null
-/* 轮起点兜底：长任务会话里 turn/start 可能落在加载窗口之外——用 turnOutline 给出的本轮起始 seq
+/* 轮起点兜底：长任务会話里 turn/start 可能落在加载窗口之外——用 turnOutline 给出的本轮起始 seq
    取一小页事件把轮起点补回来（实时 pill 的时长、轮结束后的总时长都靠它） */
 async function backfillTurnStart(s, turn, onDone) {
   if (turn == null || s._turnStartFetched === turn) return
@@ -2822,7 +2822,7 @@ function syncLivePill(s) {
     if (existing.dataset.dur !== String(Math.round(ts.durMs / 1000))) { existing.dataset.dur = String(Math.round(ts.durMs / 1000)); fillStatPill(existing, ts) }
     return
   }
-  // 挂载点：本轮最后一条助手消息的 meta 行；本轮还没有助手消息就挂到直播气泡上
+  // 挂载点：本轮最后一条助手メッセージ的 meta 行；本轮还没有助手メッセージ就挂到直播气泡上
   let meta = null
   for (let i = s.items.length - 1; i >= 0; i--) {
     const it = s.items[i]
@@ -2837,7 +2837,7 @@ function syncLivePill(s) {
   meta.appendChild(pill)
 }
 
-/* 断线期间失效的审批/提问：常驻交代条（可关）。输入区上方，与排队条同一视觉语言 */
+/* 断线期间失效的审批/提问：常驻交代条（可关）。输入区上方，与待ち行列条同一视觉语言 */
 function renderStaleStrip() {
   const strip = $('#stale-strip')
   if (!strip) return
@@ -2850,18 +2850,18 @@ function renderStaleStrip() {
   strip.appendChild(tx)
   const x = el('button', 'st-x', '知道了')
   x.type = 'button'
-  x.setAttribute('aria-label', '关闭提示')
+  x.setAttribute('aria-label', '閉じる提示')
   x.onclick = () => { S.staleNotice = null; renderStaleStrip(); vibrate(8) }
   strip.appendChild(x)
 }
-/* ================= 目标（Goal）管理：横幅 + 操作面板 =================
+/* ================= 目標（Goal）管理：横幅 + 操作面板 =================
  * 投影带全套状态（objective/phase/rounds）；控制走宿主 goals/* RPC（CAS ref={id,revision}）。 */
 function goalPhaseInfo(g) {
   const ph = g && g.goal && g.goal.phase
   if (ph === 'active') return { cls: 'on', label: '进行中' }
   if (ph === 'paused') return { cls: 'paused', label: '已暂停' }
   if (ph === 'blocked') return { cls: 'blocked', label: '被卡住' }
-  return null   // complete / 无目标：不显示
+  return null   // complete / 无目標：不显示
 }
 function renderGoalBanner(s) {
   const bar = $('#goal-bar')
@@ -2874,18 +2874,18 @@ function renderGoalBanner(s) {
   const rounds = g.roundsStarted != null ? ' · 第 ' + (g.roundsStarted + 1) + ' 轮' : ''
   bar.textContent = ''
   const ic = el('span', 'gb-ic', '🎯')
-  const mid = el('span', 'gb-mid', '目标' + rounds + ' · ' + info.label)
+  const mid = el('span', 'gb-mid', '目標' + rounds + ' · ' + info.label)
   const obj = el('span', 'gb-obj', (g.goal.objective || '').slice(0, 40) + ((g.goal.objective || '').length > 40 ? '…' : ''))
   bar.append(ic, mid, obj)
   bar.onclick = () => { vibrate(8); openGoalPanel(s) }
 }
 async function goalRpc(s, method, extra) {
   const g = s.goal && s.goal.goal
-  if (!g) { toast('没有可操作的目标', true); return null }
+  if (!g) { toast('没有可操作的目標', true); return null }
   try {
     const v = await rpc(method, { agentId: s.id, ref: { id: g.id, revision: g.revision }, ...(extra || {}) })
     // goal 变更不走 control 投影流（只有 goal/activation-changed 事件）：成功后主动回读一次，横幅立刻跟上
-    try { const g2 = await rpc('goals/get', { agentId: s.id }); s.goal = (g2 && g2.id) ? { goal: g2, roundsStarted: s.goal ? s.goal.roundsStarted : undefined } : null } catch (e2) {}   // goals/get 返回目标本体；clear 后返回空 → 置 null（横幅消失）
+    try { const g2 = await rpc('goals/get', { agentId: s.id }); s.goal = (g2 && g2.id) ? { goal: g2, roundsStarted: s.goal ? s.goal.roundsStarted : undefined } : null } catch (e2) {}   // goals/get 戻る目標本体；clear 后戻る空 → 置 null（横幅消失）
     renderGoalBanner(s)
     return v
   } catch (e) {
@@ -2898,7 +2898,7 @@ function openGoalPanel(s) {
   if (!ov) {
     ov = el('div', 'sheet-overlay')
     ov.id = 'goal-ov'
-    ov.innerHTML = '<div class="sheet goal-sheet"><div class="grabber"></div><div class="qd-head"><span class="qd-title">🎯 目标</span><span class="qd-cnt"></span><button class="think-close" id="goal-close" type="button" aria-label="关闭">✕</button></div><div class="sheet-scroll q-body" id="goal-body"></div></div>'
+    ov.innerHTML = '<div class="sheet goal-sheet"><div class="grabber"></div><div class="qd-head"><span class="qd-title">🎯 目標</span><span class="qd-cnt"></span><button class="think-close" id="goal-close" type="button" aria-label="閉じる">✕</button></div><div class="sheet-scroll q-body" id="goal-body"></div></div>'
     document.querySelector('#app').appendChild(ov)
     ov.addEventListener('click', (e) => { if (e.target === ov) closeGoalPanel() })
   }
@@ -2912,33 +2912,33 @@ function renderGoalPanel(s, editing) {
   if (!body) return
   body.textContent = ''
   const g = s.goal
-  if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', '这个会话当前没有目标。')); return }
+  if (!g || !g.goal) { body.appendChild(el('div', 'sheet-note', '这个会話当前没有目標。')); return }
   const info = goalPhaseInfo(g) || { cls: '', label: g.goal.phase === 'complete' ? '已完成' : '未知' }
   if (editing) {
-    // —— 编辑模式：目标文本就地变输入框，按钮换成 取消/保存 ——
-    body.appendChild(el('div', 'sheet-note', '修改目标文本：agent 从下一轮起按新目标继续。'))
+    // —— 编辑模式：目標文本就地变输入框，按钮换成 キャンセル/保存 ——
+    body.appendChild(el('div', 'sheet-note', '修改目標文本：agent 从下一轮起按新目標继续。'))
     const box = el('textarea', 'goal-edit')
     box.value = g.goal.objective || ''
-    box.setAttribute('aria-label', '目标内容')
+    box.setAttribute('aria-label', '目標内容')
     body.appendChild(box)
     const meta = el('div', 'goal-meta')
     meta.innerHTML = '<span>状态：<b>' + info.label + '</b></span><span>第 ' + ((g.roundsStarted || 0) + 1) + ' 轮</span>'
     body.appendChild(meta)
     const row = el('div', 'goal-btns')
-    const cancel = el('button', 'goal-btn', '取消')
+    const cancel = el('button', 'goal-btn', 'キャンセル')
     cancel.type = 'button'
     cancel.onclick = () => { vibrate(6); renderGoalPanel(s) }
-    const save = el('button', 'goal-btn primary', '保存目标')
+    const save = el('button', 'goal-btn primary', '保存目標')
     save.type = 'button'
     save.onclick = async () => {
       const t = box.value.trim()
-      if (!t) { toast('目标不能为空', true); return }
+      if (!t) { toast('目標不能为空', true); return }
       vibrate(8)
       save.disabled = true; cancel.disabled = true
       save.textContent = '保存中…'
       const v = await goalRpc(s, 'goals/edit', { request: { objective: t } })
-      if (v) { closeGoalPanel(); toast('目标已更新 ✓') }
-      else { save.disabled = false; cancel.disabled = false; save.textContent = '保存目标' }   // 失败：留在编辑态，内容不丢
+      if (v) { closeGoalPanel(); toast('目標已更新 ✓') }
+      else { save.disabled = false; cancel.disabled = false; save.textContent = '保存目標' }   // 失败：留在编辑态，内容不丢
     }
     row.append(cancel, save)
     body.appendChild(row)
@@ -2969,16 +2969,16 @@ function renderGoalPanel(s, editing) {
   if (phase === 'paused' || phase === 'blocked') row.appendChild(mkBtn('▶ 继续', () => goalRpc(s, 'goals/resume'), true))
   if (phase !== 'complete') {
     row.appendChild(mkBtn('✏️ 编辑', () => { renderGoalPanel(s, true); return 'keep' }))
-    row.appendChild(mkBtn('🗑 删除目标', () => goalRpc(s, 'goals/clear'), false, true))
+    row.appendChild(mkBtn('🗑 删除目標', () => goalRpc(s, 'goals/clear'), false, true))
   }
   body.appendChild(row)
-  body.appendChild(el('div', 'sheet-note', '目标由 agent 在长任务时创建：暂停后它跑完本轮即停，删除后不再自动继续。'))
+  body.appendChild(el('div', 'sheet-note', '目標由 agent 在长任务时创建：暂停后它跑完本轮即停，删除后不再自动继续。'))
 }
 
 /* ================= 朗读（TTS）：Web Speech API，本地免费、即点即播 =================
- * 交互（与用户确认过的方案）：助手消息 meta 行 🔊＝朗读该条；播放时输入框上方浮播报条
+ * 交互（与用户确认过的方案）：助手メッセージ meta 行 🔊＝朗读该条；播放时输入框上方浮播报条
  *（⏸ · 第 i/N 段 · 语速 · ✕）；⋯ 里「自动朗读」开关（默认关，轮结束自动读最后一条）；
- * 发新消息/停止/切会话自动停；代码块跳过、markdown 转口语、按句排队（绕开 iOS 长文截断）。 */
+ * 发新メッセージ/停止/切会話自动停；代码块跳过、markdown 转口语、按句待ち行列（绕开 iOS 长文截断）。 */
 const TTS = { on: false, paused: false, chunks: [], idx: 0, rate: (() => { try { return parseFloat(localStorage.getItem('dshm-tts-rate')) || 1 } catch (e) { return 1 } })(), voice: null, key: null, tok: 0 }
 function ttsAuto() { try { return localStorage.getItem('dshm-tts-auto') === '1' } catch (e) { return false } }
 function ttsSetAuto(v) { try { localStorage.setItem('dshm-tts-auto', v ? '1' : '0') } catch (e) {} }
@@ -3067,7 +3067,7 @@ function ttsCycleRate() {
   vibrate(6)
   ttsBar()   // 只换档不打断：当前段照常播完，下一段起用新语速（重新起播会从段头复读，用户不要）
 }
-/* 播报条（输入框上方，与排队条同区） */
+/* 播报条（输入框上方，与待ち行列条同区） */
 function ttsBar() {
   const bar = $('#tts-bar')
   if (!bar) return
@@ -3095,7 +3095,7 @@ function ttsWarm() {
   try { const u = new SpeechSynthesisUtterance(' '); speechSynthesis.cancel(); speechSynthesis.speak(u) } catch (e) {}
 }
 
-/* ---- 排队/插话 chip 条（输入框上方固定，点按出操作单） ---- */
+/* ---- 待ち行列/插话 chip 条（输入框上方固定，点按出操作单） ---- */
 function renderQueueStrip(s) {
   const strip = $('#q-strip')
   if (!strip) return
@@ -3105,7 +3105,7 @@ function renderQueueStrip(s) {
     const rid = q.message && q.message.source && (q.message.source.requestId || q.message.source.rpcId)
     if (rid && s.items.some((x) => x.kind === 'user' && x.rpcId === rid)) return false  // rpcId 匹配的乐观气泡已显示
     // 修复：队列广播的 source 是空对象（无 requestId），按文本兜底去重——
-    // 否则同一条消息既有乐观气泡又挂 chip，被领取后观感就是「chip 不消失」
+    // 否则同一条メッセージ既有乐观气泡又挂 chip，被领取后观感就是「chip 不消失」
     const text = textOf(q.message && q.message.content)
     if (!rid && text && s.items.some((x) => x.kind === 'user' && (x.pending || x.sent) && x.text === text)) return false
     return true
@@ -3117,17 +3117,17 @@ function renderQueueStrip(s) {
     const content = (q.message && q.message.content) || []
     const text = textOf(content)
     const nImg = content.filter((b) => b && b.type === 'image').length
-    // 无文本且有图片也要有代表（修复：纯图片的排队消息此前对话流和 chip 两头都不显示，
+    // 无文本且有图片也要有代表（修复：纯图片的待ち行列メッセージ此前对话流和 chip 两头都不显示，
     // 直到本轮结束才「凭空出现」，用户会以为截图没发出去）
     const label = text.trim() ? text : (nImg ? '图片 × ' + nImg : '')
     if (!label) continue
     const chip = el('button', 'q-chip' + (q.placement === 'steering' ? ' steer' : ''))
     chip.type = 'button'
     const dot = el('span', 'q-dot')
-    const tag = el('span', 'q-tag', q.placement === 'steering' ? '插话' : '排队 #' + qi)
+    const tag = el('span', 'q-tag', q.placement === 'steering' ? '插话' : '待ち行列 #' + qi)
     const tx = el('span', 'q-text', label)
     chip.append(dot, tag, tx)
-    onTap(chip, () => openQSheet(s, q))  // 排队 chip 也在输入区：同樣走 touchend 派发
+    onTap(chip, () => openQSheet(s, q))  // 待ち行列 chip 也在输入区：同樣走 touchend 派发
     strip.appendChild(chip)
   }
 }
@@ -3139,7 +3139,7 @@ function editableText(node) {
   if (!t) t = node.textContent || ''
   return t.replace(/\u00a0/g, ' ').trim()
 }
-/* 排队操作单：编辑 / 立即插话 / 删除 */
+/* 待ち行列操作单：编辑 / 立即插话 / 删除 */
 function openQSheet(s, q) {
   vibrate(8)
   const ov = $('#q-ov'), sheet = $('#q-sheet'), box = $('#q-edit-box'), body = $('#q-body')
@@ -3164,7 +3164,7 @@ function openQSheet(s, q) {
     vibrate(8)
     try {
       await rpc('session/updateQueue', { request: { sessionId: sid, itemId, action: { kind: 'edit', content: [{ type: 'text', text: newText }] } } })
-      toast('已更新排队内容 ✓')
+      toast('已更新待ち行列内容 ✓')
       closeQSheet()
     } catch (e) { toast('更新失败：' + e.message, true) }
   }
@@ -3175,7 +3175,7 @@ function openQSheet(s, q) {
       s._steeredIds = s._steeredIds || new Set()
       s._steeredIds.add(itemId)   // 宿主队列帧有延迟，可能把已插话的条目再广播回来（chip 复现→二次插话→幽灵回显）；本地永久屏蔽
       // 乐观上屏（桌面同款语义）：宿主要等 agent 消费才产生 user/message 事件，
-      // 在此之前 chip 就该消失、消息就该出现在对话流里，等到持久事件再就地转正
+      // 在此之前 chip 就该消失、メッセージ就该出现在对话流里，等到持久事件再就地转正
       const qi = (s.queue || []).findIndex((x) => x.id === itemId)
       const qm = qi >= 0 ? s.queue[qi] : null
       if (qi >= 0) s.queue.splice(qi, 1)
@@ -3202,7 +3202,7 @@ function openQSheet(s, q) {
     vibrate(8)
     try {
       await rpc('session/updateQueue', { request: { sessionId: sid, itemId, action: { kind: 'remove' } } })
-      toast('已删除排队 🗑')
+      toast('已删除待ち行列 🗑')
       closeQSheet()
     } catch (e) { toast('删除失败：' + e.message, true) }
   }
@@ -3213,12 +3213,12 @@ function closeQSheet() {
   ovSet('q-ov', false)
   $('#q-sheet').classList.remove('open')
 }
-/* 关单子时把键盘收走：焦点留在已关闭的编辑框上会让 iOS 键盘挂在屏幕上 */
+/* 关单子时把键盘收走：焦点留在已閉じる的编辑框上会让 iOS 键盘挂在屏幕上 */
 function blurInside(root) {
   const a = document.activeElement
   if (root && a && a !== document.body && typeof a.blur === 'function' && root.contains(a)) a.blur()
 }
-/* 运行中发送模式：默认排队（与桌面一致），长按发送=本次反向 */
+/* 运行中送信模式：默认待ち行列（与桌面一致），长按送信=本次反向 */
 function busyEnter() {
   try { return localStorage.getItem('dshm-busy-enter') === 'steer' ? 'steer' : 'queue' } catch (e) { return 'queue' }
 }
@@ -3226,9 +3226,9 @@ function setBusyEnter(v) {
   try { localStorage.setItem('dshm-busy-enter', v) } catch (e) {}
   if (S.current) refreshChatChrome(sess(S.current))
 }
-/* ===== 「这是怎么工作的」hi-fi 原型：故事页（真实数据）+ 自己的会话 + 导演视角回放 ===== */
+/* ===== 「这是怎么工作的」hi-fi 原型：故事页（真实数据）+ 自己的会話 + 导演视角回放 ===== */
 const HOW = { view: 'story', slide: 0, ctx: null, anCache: new Map(), timer: null }
-/* —— 数据分析：把会话事件日志折成「每轮圈数/文件/命令/时长」—— */
+/* —— 数据分析：把会話事件日志折成「每轮圈数/文件/命令/时长」—— */
 async function howAnalyze(sid) {
   if (HOW.anCache.has(sid)) return HOW.anCache.get(sid)
   const p = howAnalyzeStart(sid)
@@ -3270,7 +3270,7 @@ function howAnalyzeStart(sid) {
     const best = done[0] || null
     const cp = vals.contextPressure || {}
     const out = {
-      sid, title: String(vals.title || '未命名会话'), asOf,
+      sid, title: String(vals.title || '未命名会話'), asOf,
       best, totalTurns: done.length, totalSteps: done.reduce((a, t) => a + t.steps, 0),
       totalTools: done.reduce((a, t) => a + t.tools, 0),
       ctxPct: cp.contextWindow ? Math.round(cp.pressureTokens / cp.contextWindow * 100) : null,
@@ -3308,14 +3308,14 @@ function openHowItWorks(s) {
   HOW.view = 'story'; HOW.slide = 0
   const ov = el('div')
   ov.id = 'how-ov'
-  ov.innerHTML = '<div class="how-head"><button class="how-back" id="how-back" type="button" style="display:none">‹ 返回</button><span class="how-dots" id="how-dots"></span><button class="how-x" id="how-x" type="button">✕</button></div><div class="how-body" id="how-body"></div>'
+  ov.innerHTML = '<div class="how-head"><button class="how-back" id="how-back" type="button" style="display:none">‹ 戻る</button><span class="how-dots" id="how-dots"></span><button class="how-x" id="how-x" type="button">✕</button></div><div class="how-body" id="how-body"></div>'
   document.body.appendChild(ov)
   $('#how-x').onclick = () => howClose()
   $('#how-back').onclick = () => { if (HOW.view === 'replay' || HOW.view === 'dialogue') howShowBreakdown(HOW.ctx.an.sid); else if (HOW.view === 'breakdown' || HOW.view === 'picker') howStoryView(); }
   HOW.ctx = { s }
   howBuildStory(s)
   document.documentElement.style.overflow = 'hidden'
-  // 异步补真实数字（当前会话最近一轮）
+  // 异步补真实数字（当前会話最近一轮）
   howAnalyze(s.id).then((an) => {
     HOW.ctx.an = an
     howFillReal(an)
@@ -3362,7 +3362,7 @@ function howBuildStory(s, an) {
     '<div class="fx r2"><span>📄</span>翻了 <b data-how="files">' + files + '</b> 个文件</div>' +
     '<div class="fx r3"><span>⌨️</span>跑了 <b data-how="bash">' + bash + '</b> 条命令</div>' +
     '<div class="fx r4 how-last"><span>💬</span>最后才写下你看到的这段话</div>' +
-    '</div><div class="how-hint">数字来自你这条会话的真实日志 · 右滑继续 →</div>'))
+    '</div><div class="how-hint">数字来自你这条会話的真实日志 · 右滑继续 →</div>'))
   track.appendChild(slide(
     '<div class="how-big">电话那头的专家<br>很聪明，但看不见</div>' +
     '<div class="how-cloud fx c1">🧠<i>只会想 · 只会说</i></div>' +
@@ -3384,7 +3384,7 @@ function howBuildStory(s, an) {
     '</div><div class="how-desc fx c6">你界面里的每张工具卡片，就是右边这些「好，正在…」</div>'))
   const ring4 = howRing(210, 34)
   const s4 = slide(
-    '<div class="how-big">你的一条消息<br>实际转了 <span data-how="steps2">' + steps + '</span> 圈</div>')
+    '<div class="how-big">你的一条メッセージ<br>实际转了 <span data-how="steps2">' + steps + '</span> 圈</div>')
   ring4.el.classList.add('fx', 'c2')
   ring4.setCount(steps)
   s4.appendChild(ring4.el)
@@ -3394,7 +3394,7 @@ function howBuildStory(s, an) {
   track.appendChild(slide(
     '<div class="how-big">每说一句<br>案卷就厚一分</div>' +
     '<div class="how-stack fx c2"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>' +
-    '<div class="how-press fx c3"><div class="lbl"><span>这条会话的案卷厚度（上下文）</span><span data-how="ctx">' + ctxPct + '%</span></div><div class="pbar"><i style="width:' + ctxPct + '%"></i></div></div>' +
+    '<div class="how-press fx c3"><div class="lbl"><span>这条会話的案卷厚度（上下文）</span><span data-how="ctx">' + ctxPct + '%</span></div><div class="pbar"><i style="width:' + ctxPct + '%"></i></div></div>' +
     '<div class="how-desc fx c4">太厚会自动做摘要再继续——<br>这也是长对话偶尔「忘事」的原因。</div>' +
     '<button class="how-cta fx c5" type="button">看看你自己最近的对话 →</button>'))
   body.appendChild(track)
@@ -3424,31 +3424,31 @@ function howFillReal(an) {
   if (HOW.ring4) HOW.ring4.setCount(b.steps)
 }
 function howEsc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
-/* —— 挑一条自己的会话 —— */
+/* —— 挑一条自己的会話 —— */
 async function howShowPicker() {
   HOW.view = 'picker'
   $('#how-back').style.display = ''
   const body = $('#how-body')
   body.textContent = ''
   body.appendChild(el('div', 'how-big', '挑一条你自己的对话'))
-  body.appendChild(el('div', 'how-desc', '下面是你最近的会话，点开看它的「幕后」'))
+  body.appendChild(el('div', 'how-desc', '下面是你最近的会話，点开看它的「幕后」'))
   const listEl = el('div', 'how-list')
   body.appendChild(listEl)
   try {
     const list = await rpc('session/list', { _request: { limit: 40 } })
     const items = (list.items || []).filter((x) => !x.archived && x.origin !== 'subagent' && (x.projections && x.projections.asOfSeq || 0) > 60).slice(0, 6)
-    if (!items.length) { listEl.appendChild(el('div', 'how-desc', '没找到足够长的会话')); return }
+    if (!items.length) { listEl.appendChild(el('div', 'how-desc', '没找到足够长的会話')); return }
     for (const it of items) {
       const vals = (it.projections && it.projections.values) || {}
       const row = btnize(el('div', 'how-srow'))
-      row.appendChild(el('div', 'how-st', String(vals.title || '未命名会话').slice(0, 26)))
+      row.appendChild(el('div', 'how-st', String(vals.title || '未命名会話').slice(0, 26)))
       row.appendChild(el('div', 'how-sd', (it.projections.asOfSeq || 0) + ' 条事件 · 读取中…'))
       row.onclick = async () => { vibrate(8); row.querySelector('.how-sd').textContent = '分析中…'; howShowBreakdown(it.sessionId) }
       listEl.appendChild(row)
     }
   } catch (e) { listEl.appendChild(el('div', 'how-desc', '读取失败：' + e.message)) }
 }
-/* —— 单会话拆解 —— */
+/* —— 单会話拆解 —— */
 async function howShowBreakdown(sid) {
   HOW.view = 'breakdown'
   $('#how-back').style.display = ''
@@ -3459,11 +3459,11 @@ async function howShowBreakdown(sid) {
   HOW.ctx = HOW.ctx || {}
   HOW.ctx.an = an
   body.textContent = ''
-  if (an.error || !an.best) { body.appendChild(el('div', 'how-desc', an.error || '这条会话还没有完成的轮')); return }
+  if (an.error || !an.best) { body.appendChild(el('div', 'how-desc', an.error || '这条会話还没有完成的轮')); return }
   const b = an.best
   const fmtDur = (ms) => { const s2 = Math.round(ms / 1000); if (s2 >= 3600) return (s2 / 3600).toFixed(1) + ' 小时'; if (s2 >= 60) return Math.round(s2 / 60) + ' 分钟'; return s2 + ' 秒' }
   body.appendChild(el('div', 'how-big', howEsc(an.title.slice(0, 16))))
-  body.appendChild(el('div', 'how-bub u', howEsc(b.userText || '（一条消息）')))
+  body.appendChild(el('div', 'how-bub u', howEsc(b.userText || '（一条メッセージ）')))
   const vs = el('div', 'how-vs')
   vs.innerHTML =
     '<div class="fx r1"><span>🧠</span>转了 <b>' + b.steps + '</b> 圈（想→做→看→再想）</div>' +
@@ -3474,7 +3474,7 @@ async function howShowBreakdown(sid) {
   const ring = howRing(180, 30)
   ring.setCount(b.steps)
   body.appendChild(ring.el)
-  const meta = el('div', 'how-desc', '全会话共 ' + an.totalTurns + ' 轮对话 · 累计 ' + an.totalSteps + ' 圈 · ' + an.totalTools + ' 次动手' + (an.ctxPct != null ? ' · 案卷 ' + an.ctxPct + '%' : ''))
+  const meta = el('div', 'how-desc', '全会話共 ' + an.totalTurns + ' 轮对话 · 累计 ' + an.totalSteps + ' 圈 · ' + an.totalTools + ' 次动手' + (an.ctxPct != null ? ' · 案卷 ' + an.ctxPct + '%' : ''))
   body.appendChild(meta)
   const btn = el('button', 'how-cta', '▶ 导演视角：回放这一轮')
   btn.type = 'button'
@@ -3485,7 +3485,7 @@ async function howShowBreakdown(sid) {
   btn2.onclick = () => howDialogue(an)
   body.appendChild(btn2)
 }
-/* —— 电话记录：逐轮还原 Harness(input) ↔ 模型(output) —— */
+/* —— 电话记录：逐轮还原 Harness(input) ↔ モデル(output) —— */
 function howToolResultText(e) {
   const c = (e.data && e.data.message && e.data.message.content) || []
   for (const blk of c) {
@@ -3510,7 +3510,7 @@ function howDialogue(an) {
   body.textContent = ''
   const b = an.best
   const recs = (an.recs || []).filter((e) => e.seq >= b.start - 6 && e.seq <= b.end)
-  const inTurn = (e) => e.seq >= b.start   // 前移 6 个事件只为接住 turn 开始前的用户消息；step 计数只认轮内
+  const inTurn = (e) => e.seq >= b.start   // 前移 6 个事件只为接住 turn 开始前的用户メッセージ；step 计数只认轮内
   // 分轮：step/start 开一通新电话；两通之间落地的 tool/result / 用户补充 / 摘要 → 下一通要「念给它听」的新内容
   const rounds = []
   let cur = null, pendingNew = [], n = 0, firstUser = ''
@@ -3549,7 +3549,7 @@ function howDialogue(an) {
   }
   if (!firstUser) firstUser = b.userText || '（新任务）'
   body.appendChild(el('div', 'how-big', '电话记录'))
-  body.appendChild(el('div', 'how-desc', '🧠 专家（模型）：只有脑子、耳朵、嘴——会想、会听、会说，自己动不了手。\n🤖 助理（Harness）：有手有脚有眼睛——替它翻文件、跑命令，再把结果念给它听。\n\n每一通电话 = 一轮 input / output。点任何一条可展开真实内容。'))
+  body.appendChild(el('div', 'how-desc', '🧠 专家（モデル）：只有脑子、耳朵、嘴——会想、会听、会说，自己动不了手。\n🤖 助理（Harness）：有手有脚有眼睛——替它翻文件、跑命令，再把结果念给它听。\n\n每一通电话 = 一轮 input / output。点任何一条可展开真实内容。'))
   body.appendChild(el('div', 'how-dlgmeta', '这一轮共 ' + rounds.length + ' 通电话'))
   const list = el('div', 'how-dlg')
   for (const r of rounds) {
@@ -3560,7 +3560,7 @@ function howDialogue(an) {
     lb.appendChild(el('div', 'who', '🤖 助理念给它听（input）'))
     if (r.n === 1) {
       lb.appendChild(el('div', 'ln', '规则手册 + 工具清单（它能请你做的一切）'))
-      lb.appendChild(el('div', 'ln', '用户的新消息'))
+      lb.appendChild(el('div', 'ln', '用户的新メッセージ'))
       lb.appendChild(howDetails('🙋「' + firstUser.slice(0, 36) + (firstUser.length > 36 ? '…' : '') + '」', firstUser, false))
     } else {
       lb.appendChild(el('div', 'ln', '把到目前为止的案卷从头念一遍' + (r.news.length ? '，新增 ' + r.news.length + ' 页：' : '（本轮没有新内容）')))
@@ -3597,7 +3597,7 @@ function howToolLabel(name, args) {
     edit: ['✏️', '改 ' + (f || '文件')],
     grep: ['🔍', '搜代码'],
     glob: ['🗂', '找文件'],
-    todo_write: ['📋', '更新任务清单'],
+    todo_write: ['📋', '更新タスク一覧'],
     web_search: ['🌐', '搜网页'],
     web_fetch: ['🌐', '读网页'],
   }
@@ -3664,7 +3664,7 @@ function howReplay(an) {
 
 /* #/proto —— Harness 可视化原型（评审用：无任何入口，不影响现有界面；评审通过后做成 ⋯ 里的正式功能） */
 const PROTO_STYLE = "\n:root {\n  --bg:#0b0e14; --bg-elev:#12161f; --bg-card:#171c28; --bg-card-2:#1d2331;\n  --line:rgba(255,255,255,.08); --text:#e8ebf1; --text-2:#9aa3b2; --text-3:#7d8590;\n  --accent:#3b82f6; --accent-soft:rgba(59,130,246,.16); --accent-fill:#2563eb;\n  --green:#34c759; --orange:#ff9f0a; --red:#ff453a; --purple:#bf5af2; --info:#6aa6ff;\n  --font:-apple-system,BlinkMacSystemFont,\"SF Pro Text\",\"PingFang SC\",\"Helvetica Neue\",sans-serif;\n  --mono:ui-monospace,\"SF Mono\",Menlo,monospace;\n}\n* { box-sizing:border-box; margin:0; padding:0; }\nbody { background:#07090d; font-family:var(--font); color:var(--text); padding:36px 40px 60px; }\n.board { max-width:1720px; margin:0 auto; }\nh1 { font-size:26px; margin-bottom:6px; }\n.sub { color:var(--text-3); font-size:14px; margin-bottom:34px; }\n.sec { margin-bottom:44px; }\n.sec-title { font-size:17px; font-weight:700; margin-bottom:4px; }\n.sec-sub { font-size:13px; color:var(--text-3); margin-bottom:20px; }\n.row { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }\n.cell { display:flex; flex-direction:column; gap:12px; }\n.cap { font-size:13px; color:var(--text-2); line-height:1.6; max-width:300px; }\n.cap b { color:var(--text); }\n.cap .tag { display:inline-block; font-size:11px; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:1px 7px; margin-bottom:4px; }\n/* 手机框 */\n.phone { width:300px; height:630px; background:var(--bg); border:1px solid var(--line); border-radius:34px; overflow:hidden; position:relative; flex:none; box-shadow:0 18px 50px rgba(0,0,0,.5); }\n.notch { position:absolute; top:8px; left:50%; transform:translateX(-50%); width:88px; height:22px; background:#000; border-radius:11px; z-index:9; }\n.statusbar { height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 4px; font-size:11px; color:var(--text-2); }\n.screen { position:absolute; inset:40px 0 0; display:flex; flex-direction:column; }\n/* 页头（故事页共用） */\n.story-head { padding:10px 18px 6px; display:flex; align-items:center; gap:8px; }\n.story-head .n { width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }\n.story-head .t { font-size:15px; font-weight:700; }\n.story-body { flex:1; padding:8px 18px 16px; display:flex; flex-direction:column; }\n.story-big { font-size:21px; font-weight:700; line-height:1.45; margin:6px 0 8px; }\n.story-desc { font-size:13px; color:var(--text-2); line-height:1.7; }\n.dots { display:flex; gap:6px; justify-content:center; padding:10px 0 14px; }\n.dots i { width:6px; height:6px; border-radius:3px; background:var(--line); }\n.dots i.on { background:var(--accent); width:16px; }\n/* 通用气泡 */\n.bub-u { align-self:flex-end; max-width:82%; background:var(--accent-fill); color:#fff; border-radius:16px 16px 4px 16px; padding:9px 13px; font-size:13.5px; line-height:1.5; }\n.bub-b { align-self:flex-start; max-width:82%; background:var(--bg-card); border:1px solid var(--line); border-radius:16px 16px 16px 4px; padding:9px 13px; font-size:13.5px; line-height:1.5; color:var(--text); }\n.meta { font-size:10px; color:var(--text-3); margin:2px 10px 0 auto; }\n/* ============ 屏1：你看到的 vs 背后 ============ */\n.vs-wrap { position:relative; margin-top:14px; flex:1; display:flex; flex-direction:column; }\n.vs-behind { flex:1; border:1.5px dashed rgba(59,130,246,.5); border-radius:14px; background:rgba(59,130,246,.05); padding:12px 12px 10px; margin-top:34px; position:relative; }\n.vs-behind::before { content:\"背后实际发生的\"; position:absolute; top:-11px; left:12px; background:var(--bg); padding:0 8px; font-size:11px; color:var(--accent); }\n.vs-row { display:flex; gap:8px; align-items:center; background:var(--bg-card); border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-bottom:7px; font-size:12px; color:var(--text-2); }\n.vs-row .ic { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; flex:none; }\n.vs-tail { text-align:center; color:var(--text-3); font-size:16px; line-height:1; margin:2px 0 6px; }\n/* ============ 屏2：电话里的盲专家 ============ */\n.phone-demo { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; position:relative; }\n.cloud { width:120px; height:74px; border-radius:40px; background:var(--bg-card-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:30px; position:relative; z-index:2; }\n.cloud::after { content:\"只会想 · 只会说\"; position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); font-size:11px; color:var(--text-3); white-space:nowrap; }\n.wire { width:2px; height:52px; background:linear-gradient(var(--purple), transparent); margin:26px 0 8px; }\n.tel { font-size:46px; }\n.senses { display:flex; gap:14px; margin-top:26px; }\n.sense { text-align:center; font-size:11px; color:var(--text-3); }\n.sense .x { font-size:22px; position:relative; display:block; margin-bottom:4px; }\n.sense .x::after { content:\"✕\"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--red); font-size:22px; font-weight:700; }\n/* ============ 屏3：手和眼 ============ */\n.hands { flex:1; display:flex; flex-direction:column; gap:10px; justify-content:center; }\n.hm { display:flex; gap:10px; }\n.hm .side { width:86px; flex:none; text-align:center; font-size:11px; color:var(--text-3); }\n.hm .side .em { font-size:26px; display:block; margin-bottom:3px; }\n.hm .bub-s { flex:1; background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:8px 11px; font-size:12.5px; line-height:1.55; color:var(--text-2); }\n.hm .bub-s b { color:var(--text); }\n.hm .bub-s.do { border-color:rgba(52,199,89,.35); }\n.hm .bub-s.do b { color:var(--green); }\n/* ============ 屏4：循环 ============ */\n.ring-wrap { flex:1; display:flex; align-items:center; justify-content:center; position:relative; }\n.ring { width:212px; height:212px; position:relative; }\n.ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.stn { position:absolute; width:64px; height:64px; margin:-32px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:12px; font-weight:600; color:var(--text-2); }\n.stn .em2 { font-size:17px; }\n.stn.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.18); box-shadow:0 0 24px rgba(59,130,246,.35); }\n.ring-ct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }\n.ring-ct .k { font-size:11px; color:var(--text-3); }\n.ring-ct .v { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }\n.ring-ct .v small { font-size:12px; font-weight:600; color:var(--text-3); }\n/* ============ 屏5：案卷 ============ */\n.papers { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }\n.stack { position:relative; width:150px; }\n.p { height:15px; background:var(--bg-card-2); border:1px solid var(--line); border-radius:3px; margin-top:-4px; }\n.p.on { background:rgba(191,90,242,.25); border-color:rgba(191,90,242,.4); }\n.pressure { width:86%; }\n.pressure .lbl { display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-bottom:5px; }\n.pbar { height:8px; border-radius:4px; background:var(--bg-card); overflow:hidden; }\n.pbar i { display:block; height:100%; width:68%; border-radius:4px; background:linear-gradient(90deg, var(--accent), var(--orange)); }\n/* ============ 导演视角 ============ */\n.chat-mini { flex:1; overflow:hidden; padding:4px 14px; display:flex; flex-direction:column; gap:9px; }\n.engine-ov { position:absolute; left:0; right:0; bottom:0; background:var(--bg-elev); border-top:1px solid var(--line); border-radius:20px 20px 0 0; padding:12px 16px 14px; box-shadow:0 -14px 40px rgba(0,0,0,.5); }\n.eng-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }\n.eng-head .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s infinite; }\n@keyframes pulse { 0%,100% { opacity:1; transform:scale(1);} 50% { opacity:.4; transform:scale(.7);} }\n.eng-head .tt { font-size:14px; font-weight:700; }\n.eng-head .cnt { margin-left:auto; font-size:12px; color:var(--info); font-variant-numeric:tabular-nums; }\n.eng-body { display:flex; gap:14px; align-items:center; }\n.eng-ring { width:118px; height:118px; position:relative; flex:none; }\n.eng-ring svg { width:100%; height:100%; transform:rotate(-90deg); }\n.eng-acts { flex:1; min-width:0; }\n.eng-act { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:9px; font-size:12px; color:var(--text-2); }\n.eng-act.now { background:var(--accent-soft); color:var(--text); }\n.eng-act .st { margin-left:auto; font-size:10.5px; color:var(--text-3); }\n.eng-act.now .st { color:var(--info); }\n.st2 { position:absolute; width:46px; height:46px; margin:-23px; border-radius:50%; background:var(--bg-card); border:1px solid var(--line); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; color:var(--text-2); }\n.st2 .em2 { font-size:14px; }\n.st2.lit { border-color:var(--accent); color:#fff; background:rgba(59,130,246,.2); }\n/* ============ 人话模式 ============ */\n.toggle-row { display:flex; align-items:center; gap:8px; padding:10px 18px 4px; font-size:13px; color:var(--text-2); }\n.tg { margin-left:auto; width:42px; height:25px; border-radius:13px; background:var(--green); position:relative; }\n.tg::after { content:\"\"; position:absolute; top:2.5px; right:2.5px; width:20px; height:20px; border-radius:10px; background:#fff; }\n.toolcard { background:var(--bg-card); border:1px solid var(--line); border-radius:13px; padding:9px 12px; font-size:12.5px; }\n.toolcard .tc-h { display:flex; align-items:center; gap:7px; color:var(--text); font-weight:600; }\n.toolcard .tc-h .ic { font-size:14px; }\n.toolcard .tc-h .raw { margin-left:auto; font-size:10px; color:var(--text-3); font-family:var(--mono); }\n.toolcard .tc-b { margin-top:5px; color:var(--text-2); font-size:12px; line-height:1.55; }\n.arrow-note { text-align:center; color:var(--text-3); font-size:13px; margin:2px 0; }\n"
-const PROTO_HTML = "\n<div class=\"board\">\n  <h1>Harness 可视化 · 原型</h1>\n  <div class=\"sub\">隐喻主线：「电话里的盲专家」— 模型只会想和说，Harness 是它的手和眼。两层呈现：静态故事页（讲一次）+ 导演视角（运行中看）。不占主界面。</div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">第一层 · 故事页「一次对话是怎么完成的」</div>\n    <div class=\"sec-sub\">入口：⋯ 菜单底部一行「这是怎么工作的？」· 五屏横滑 · 每屏一句话 + 一个极简图形 · 数字取自当前会话真实数据</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">0</span><span class=\"t\">入口 · 现有界面不动</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">⋯ 菜单完全保持原样，只在最底多一行：</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">🧠</span>模型</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">🛡</span>权限</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(255,159,10,.15)\">📤</span>运行中发送</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📊</span>统计</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📋</span>复制全部对话</div>\n              <div style=\"height:6px\"></div>\n              <div class=\"vs-row\" style=\"border-color:var(--accent); background:var(--accent-soft)\"><span class=\"ic\" style=\"background:rgba(59,130,246,.25)\">💡</span><b style=\"color:var(--text)\">这是怎么工作的？</b><span style=\"margin-left:auto; color:var(--accent)\">›</span></div>\n              <div class=\"story-desc\" style=\"margin-top:auto; line-height:1.7; padding-top:10px\">主界面、聊天流、输入区——<b style=\"color:var(--text)\">一个像素都不动</b>。<br>不看就当它不存在。</div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">零侵入</span><b>唯一改动：⋯ 底部一行。</b>也可以更小：做成设置里的一行，或首次使用第 3 天才出现一次的提示条。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">1</span><span class=\"t\">你看到的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">帮我看看这个项目的测试都覆盖了哪些模块</div>\n              <div class=\"meta\">14:02</div>\n              <div class=\"vs-wrap\">\n                <div class=\"vs-behind\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>先想了 26 秒，拆解你要什么</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 5 个文件，看了目录结构</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 2 条命令，找出所有测试</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后才写下你看到的那段话</div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i class=\"on\"></i><i></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">破冰</span><b>同一个气泡，背后是一场协作。</b>用用户自己刚发的消息做例子，虚线框拉开「幕后」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">2</span><span class=\"t\">电话那头的专家</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">模型很聪明，<br>但看不见也摸不着</div>\n              <div class=\"phone-demo\">\n                <div class=\"cloud\">🧠</div>\n                <div class=\"wire\"></div>\n                <div class=\"tel\">☎️</div>\n                <div class=\"senses\">\n                  <div class=\"sense\"><span class=\"x\">👁</span>看不见<br>你的电脑</div>\n                  <div class=\"sense\"><span class=\"x\">✋</span>摸不到<br>你的文件</div>\n                  <div class=\"sense\"><span class=\"x\">🏃</span>不能自己<br>动手做</div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"margin-top:10px\">它像电话里的专家：只能听你说，只能开口回答。其余一切，都需要有人替它做。</div>\n            </div>\n            <div class=\"dots\"><i></i><i class=\"on\"></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">核心隐喻</span><b>「盲」是关键。</b>它让「为什么需要工具、为什么有中间人」变得不言自明。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">3</span><span class=\"t\">手和眼</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">Harness 替它动手</div>\n              <div class=\"hands\">\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「帮我<b>翻一下</b>测试目录里有哪些文件」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>正在翻看</b> · tests/ 下有 14 个文件</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「<b>跑一下</b>测试，把结果念给我」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>执行完毕</b> · 全部通过，用了 8 秒</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「行了，我懂了，我来总结」</div></div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i class=\"on\"></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">分工</span><b>对话式呈现一来一回。</b>对应真实机制：模型输出工具调用 → Harness 执行 → 结果回传。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">4</span><span class=\"t\">转 圈</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">你的一条消息<br>实际转了 7 圈</div>\n              <div class=\"ring-wrap\">\n                <div class=\"ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这条消息</span><span class=\"v\">7<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"text-align:center\">不是一问一答——是想→做→看→再想，<br>直到专家说「我可以汇报了」。</div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i class=\"on\"></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">反直觉点</span><b>圈数是真实数字。</b>从会话的 step 事件里取，冲击力全在「原来不是一问一答」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">5</span><span class=\"t\">案卷越念越厚</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">每说一句，<br>案卷就厚一分</div>\n              <div class=\"papers\">\n                <div class=\"stack\">\n                  <div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p\"></div><div class=\"p\"></div><div class=\"p\"></div>\n                </div>\n                <div class=\"pressure\">\n                  <div class=\"lbl\"><span>当前案卷厚度（上下文）</span><span>68%</span></div>\n                  <div class=\"pbar\"><i></i></div>\n                  <div class=\"lbl\" style=\"margin-top:7px; line-height:1.5\"><span style=\"color:var(--text-2)\">太厚时会自动做摘要再继续——<br>这也是长对话偶尔「忘事」的原因</span></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i></i><i class=\"on\"></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">收尾呼应</span><b>把「上下文压力」翻译成案卷厚度。</b>与统计面板里的真实数字互相印证。</div>\n      </div>\n\n    </div>\n  </div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">真实对话演示 · 数字全部来自会话事件日志</div>\n    <div class=\"sec-sub\">同一位用户最近的真实会话——同一个「幕后」拆解，换成真数据（已隐藏工作区路径细节）</div>\n    <div class=\"row\">\n<div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">总结今天使用DSH所做的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">总结一下我今天用DSH都干了些啥，不超过100个字。</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>8 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>0 个文件</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>7 条命令</b>，用了 1 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条消息</span><span class=\"v\" style=\"font-size:22px\">8<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会话的案卷厚度</span><span>7%</span></div><div class=\"pbar\"><i style=\"width:7%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">简单请求</span><b>「不超过100个字」的总结，也转了 8 圈。</b>它翻了整天的记录、跑了 7 条命令才敢下笔——普通人以为的一问一答，背后是完整的工作流程。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">门店补货逻辑HTML科普</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你用HTML做一个科普，给我们的这个门店补货的逻辑做个科普。我要给我们公司的…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>145 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（补货方法论与预测消费契约.md、门店补货业务方案.md、补货规则决策表.md 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>65 条命令</b>，用了 35 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条消息</span><span class=\"v\" style=\"font-size:22px\">145<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会话的案卷厚度</span><span>19%</span></div><div class=\"pbar\"><i style=\"width:19%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">做东西</span><b>给文员做一页科普。</b>一句话 → 145 圈 · 35 分钟：读业务方案、理解决策表、写页面、自查。案卷厚度 19%。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">方法调研</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你先做 P0 和P1吧，做完后你可以基于历史数据更新一下预测吗？我拿实际数据…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>163 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（cli.py、backtest.py、grain.py 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>106 条命令</b>，用了 3.2 小时</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条消息</span><span class=\"v\" style=\"font-size:22px\">163<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会话的案卷厚度</span><span>45%</span></div><div class=\"pbar\"><i style=\"width:45%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">深度调研</span><b>长任务的极限形态。</b>163 圈 · 3.2 小时 · 106 条命令。专家级耐心的价值一眼可见——也解释了为什么有时要等。</div>\n      </div>\n    </div>\n  </div>\n  <div class=\"sec\">\n    <div class=\"sec-title\">第二层 · 导演视角（运行中才能看）</div>\n    <div class=\"sec-sub\">入口：运行时 ⋯ 里出现「看它现在在干嘛」· 数据全部来自现有事件流（step / tool / reasoning）· 顺带解决「它在干嘛、卡没卡」</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"chat-mini\">\n              <div class=\"bub-u\">把刚才那版样式再调紧一点</div>\n              <div class=\"meta\">14:32</div>\n              <div class=\"bub-b\" style=\"color:var(--text-3)\">正在处理…</div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">⌨️</span>bash<span class=\"raw\">2.1s</span></div><div class=\"tc-b\">npm run build</div></div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\">web/style.css</div></div>\n            </div>\n            <div class=\"engine-ov\">\n              <div class=\"eng-head\"><span class=\"dot\"></span><span class=\"tt\">引擎</span><span class=\"cnt\">第 5 圈 · 工具 12 次 · 思考 34s</span></div>\n              <div class=\"eng-body\">\n                <div class=\"eng-ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"94 251\" style=\"filter:drop-shadow(0 0 5px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 80 26 l 5 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"st2 lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"st2\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"st2\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"st2\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                </div>\n                <div class=\"eng-acts\">\n                  <div class=\"eng-act now\">🧠 正在思考 <span class=\"st\">已 6s</span></div>\n                  <div class=\"eng-act\">📄 翻看了 style.css <span class=\"st\">0.3s</span></div>\n                  <div class=\"eng-act\">⌨️ 跑了构建命令 <span class=\"st\">2.1s</span></div>\n                  <div class=\"eng-act\">🔁 上一圈：改了间距 <span class=\"st\"></span></div>\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">实时</span><b>当前阶段亮起、环随进度填充。</b>说话式记录代替工具名，转圈图本身就是诚实的进度指示。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">+</span><span class=\"t\">对账 · 人话 ↔ 原版</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">讲解页末尾：把你<b style=\"color:var(--text)\">这条真实会话</b>翻译一遍（只在讲解内部，不改真实聊天）</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>翻看了文件<span class=\"raw\">read · 0.3s</span></div><div class=\"tc-b\">web/app.js（4600 行）——扫了滚动和抽屉相关部分</div></div>\n              <div class=\"arrow-note\">↓ 同一张卡片，你平时看到的</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\" style=\"font-family:var(--mono); font-size:11px\">web/app.js</div></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">渗透（可选）</span><b>只在讲解页内部对照。</b>真实聊天一个像素不动；将来若想要常驻人话版，再作为设置里的可选项讨论。</div>\n      </div>\n\n      <div class=\"cell\" style=\"max-width:560px\">\n        <div style=\"background:var(--bg-elev); border:1px solid var(--line); border-radius:16px; padding:20px 22px; font-size:13px; line-height:2; color:var(--text-2)\">\n          <div style=\"font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px\">映射表 · 真实机制 → 屏幕语言</div>\n          <b style=\"color:var(--text)\">上下文</b> → 案卷（电话里念给专家听的）<br>\n          <b style=\"color:var(--text)\">思考流</b> → 专家沉吟「正在想」<br>\n          <b style=\"color:var(--text)\">工具调用</b> → 「帮我翻一下 / 跑一下」（人话模式）<br>\n          <b style=\"color:var(--text)\">结果回传</b> → 「念给他听」（下一圈开始）<br>\n          <b style=\"color:var(--text)\">多步循环</b> → 转圈计数「第 N 圈」<br>\n          <b style=\"color:var(--text)\">排队 / 插话</b> → 排队等他忙完 / 凑到电话边补一句<br>\n          <b style=\"color:var(--text)\">上下文压力 / 压缩</b> → 案卷厚度 · 自动做摘要<br>\n          <div style=\"margin-top:12px; padding-top:12px; border-top:1px solid var(--line)\">\n            <b style=\"color:var(--text)\">刻意不画：</b>token、JSON、system prompt 原文、模型路由、思考强度原理——每个概念只在它困扰用户的地方出现，不做教科书。\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">边界</span>原型的五屏叙事 + 导演视角 + 人话模式三层，均不占主界面：全部藏在 ⋯ 与设置里。</div>\n      </div>\n\n    </div>\n  </div>\n</div>\n"
+const PROTO_HTML = "\n<div class=\"board\">\n  <h1>Harness 可视化 · 原型</h1>\n  <div class=\"sub\">隐喻主线：「电话里的盲专家」— モデル只会想和说，Harness 是它的手和眼。两层呈现：静态故事页（讲一次）+ 导演视角（运行中看）。不占主界面。</div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">第一层 · 故事页「一次对话是怎么完成的」</div>\n    <div class=\"sec-sub\">入口：⋯ 菜单底部一行「这是怎么工作的？」· 五屏横滑 · 每屏一句话 + 一个极简图形 · 数字取自当前会話真实数据</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">0</span><span class=\"t\">入口 · 现有界面不动</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">⋯ 菜单完全保持原样，只在最底多一行：</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">🧠</span>モデル</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">🛡</span>操作の権限</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(255,159,10,.15)\">📤</span>运行中送信</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📊</span>统计</div>\n              <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(154,163,178,.15)\">📋</span>コピー全部对话</div>\n              <div style=\"height:6px\"></div>\n              <div class=\"vs-row\" style=\"border-color:var(--accent); background:var(--accent-soft)\"><span class=\"ic\" style=\"background:rgba(59,130,246,.25)\">💡</span><b style=\"color:var(--text)\">这是怎么工作的？</b><span style=\"margin-left:auto; color:var(--accent)\">›</span></div>\n              <div class=\"story-desc\" style=\"margin-top:auto; line-height:1.7; padding-top:10px\">主界面、聊天流、输入区——<b style=\"color:var(--text)\">一个像素都不动</b>。<br>不看就当它不存在。</div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">零侵入</span><b>唯一改动：⋯ 底部一行。</b>也可以更小：做成设置里的一行，或首次使用第 3 天才出现一次的提示条。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">1</span><span class=\"t\">你看到的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">帮我看看这个项目的测试都覆盖了哪些模块</div>\n              <div class=\"meta\">14:02</div>\n              <div class=\"vs-wrap\">\n                <div class=\"vs-behind\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>先想了 26 秒，拆解你要什么</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 5 个文件，看了目录结构</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 2 条命令，找出所有测试</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后才写下你看到的那段话</div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i class=\"on\"></i><i></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">破冰</span><b>同一个气泡，背后是一场协作。</b>用用户自己刚发的メッセージ做例子，虚线框拉开「幕后」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">2</span><span class=\"t\">电话那头的专家</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">モデル很聪明，<br>但看不见也摸不着</div>\n              <div class=\"phone-demo\">\n                <div class=\"cloud\">🧠</div>\n                <div class=\"wire\"></div>\n                <div class=\"tel\">☎️</div>\n                <div class=\"senses\">\n                  <div class=\"sense\"><span class=\"x\">👁</span>看不见<br>你的电脑</div>\n                  <div class=\"sense\"><span class=\"x\">✋</span>摸不到<br>你的文件</div>\n                  <div class=\"sense\"><span class=\"x\">🏃</span>不能自己<br>动手做</div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"margin-top:10px\">它像电话里的专家：只能听你说，只能开口回答。其余一切，都需要有人替它做。</div>\n            </div>\n            <div class=\"dots\"><i></i><i class=\"on\"></i><i></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">核心隐喻</span><b>「盲」是关键。</b>它让「为什么需要工具、为什么有中间人」变得不言自明。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">3</span><span class=\"t\">手和眼</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">Harness 替它动手</div>\n              <div class=\"hands\">\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「帮我<b>翻一下</b>测试目录里有哪些文件」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>正在翻看</b> · tests/ 下有 14 个文件</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「<b>跑一下</b>测试，把结果念给我」</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🤖</span>Harness</div><div class=\"bub-s do\">好，<b>执行完毕</b> · 全部通过，用了 8 秒</div></div>\n                <div class=\"hm\"><div class=\"side\"><span class=\"em\">🧠</span>专家说</div><div class=\"bub-s\">「行了，我懂了，我来总结」</div></div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i class=\"on\"></i><i></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">分工</span><b>对话式呈现一来一回。</b>对应真实机制：モデル输出工具调用 → Harness 执行 → 结果回传。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">4</span><span class=\"t\">转 圈</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">你的一条メッセージ<br>实际转了 7 圈</div>\n              <div class=\"ring-wrap\">\n                <div class=\"ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这条メッセージ</span><span class=\"v\">7<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"story-desc\" style=\"text-align:center\">不是一问一答——是想→做→看→再想，<br>直到专家说「我可以汇报了」。</div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i class=\"on\"></i><i></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">反直觉点</span><b>圈数是真实数字。</b>从会話的 step 事件里取，冲击力全在「原来不是一问一答」。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">5</span><span class=\"t\">案卷越念越厚</span></div>\n            <div class=\"story-body\">\n              <div class=\"story-big\">每说一句，<br>案卷就厚一分</div>\n              <div class=\"papers\">\n                <div class=\"stack\">\n                  <div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p on\"></div><div class=\"p\"></div><div class=\"p\"></div><div class=\"p\"></div>\n                </div>\n                <div class=\"pressure\">\n                  <div class=\"lbl\"><span>当前案卷厚度（上下文）</span><span>68%</span></div>\n                  <div class=\"pbar\"><i></i></div>\n                  <div class=\"lbl\" style=\"margin-top:7px; line-height:1.5\"><span style=\"color:var(--text-2)\">太厚时会自动做摘要再继续——<br>这也是长对话偶尔「忘事」的原因</span></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"dots\"><i></i><i></i><i></i><i></i><i class=\"on\"></i></div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">收尾呼应</span><b>把「上下文压力」翻译成案卷厚度。</b>与统计面板里的真实数字互相印证。</div>\n      </div>\n\n    </div>\n  </div>\n\n  <div class=\"sec\">\n    <div class=\"sec-title\">真实对话演示 · 数字全部来自会話事件日志</div>\n    <div class=\"sec-sub\">同一位用户最近的真实会話——同一个「幕后」拆解，换成真数据（已隐藏作業フォルダー路径细节）</div>\n    <div class=\"row\">\n<div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">总结今天使用DSH所做的</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">总结一下我今天用DSH都干了些啥，不超过100个字。</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>8 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>0 个文件</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>7 条命令</b>，用了 1 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">8<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>7%</span></div><div class=\"pbar\"><i style=\"width:7%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">简单请求</span><b>「不超过100个字」的总结，也转了 8 圈。</b>它翻了整天的记录、跑了 7 条命令才敢下笔——普通人以为的一问一答，背后是完整的工作流程。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">门店补货逻辑HTML科普</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你用HTML做一个科普，给我们的这个门店补货的逻辑做个科普。我要给我们公司的…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>145 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（补货方法论与预测消费契约.md、门店补货业务方案.md、补货规则决策表.md 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>65 条命令</b>，用了 35 分钟</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">145<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>19%</span></div><div class=\"pbar\"><i style=\"width:19%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">做东西</span><b>给文员做一页科普。</b>一句话 → 145 圈 · 35 分钟：读业务方案、理解决策表、写页面、自查。案卷厚度 19%。</div>\n      </div><div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">✓</span><span class=\"t\">方法调研</span></div>\n            <div class=\"story-body\">\n              <div class=\"bub-u\">你先做 P0 和P1吧，做完后你可以基于历史数据更新一下预测吗？我拿实际数据…</div>\n              <div class=\"vs-wrap\" style=\"margin-top:10px\">\n                <div class=\"vs-behind\" style=\"margin-top:0\">\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(191,90,242,.15)\">🧠</span>转了 <b>163 圈</b>：想→做→看→再想</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(59,130,246,.15)\">📄</span>翻了 <b>6 个文件（cli.py、backtest.py、grain.py 等）</div>\n                  <div class=\"vs-row\"><span class=\"ic\" style=\"background:rgba(52,199,89,.12)\">⌨️</span>跑了 <b>106 条命令</b>，用了 3.2 小时</div>\n                  <div class=\"vs-tail\">↓</div>\n                  <div class=\"vs-row\" style=\"border-color:rgba(59,130,246,.4)\"><span class=\"ic\" style=\"background:var(--accent-soft)\">💬</span>最后写下你看到的那段话</div>\n                </div>\n              </div>\n              <div class=\"ring-wrap\" style=\"min-height:180px\">\n                <div class=\"ring\" style=\"width:168px; height:168px\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"2.5\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"188 251\" style=\"filter:drop-shadow(0 0 4px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 86 36 l 6 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"stn lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"stn\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"stn\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"stn\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                  <div class=\"ring-ct\"><span class=\"k\">这一条メッセージ</span><span class=\"v\" style=\"font-size:22px\">163<small> 圈</small></span></div>\n                </div>\n              </div>\n              <div class=\"lbl\"><span>这条会話的案卷厚度</span><span>45%</span></div><div class=\"pbar\"><i style=\"width:45%\"></i></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">深度调研</span><b>长任务的极限形态。</b>163 圈 · 3.2 小时 · 106 条命令。专家级耐心的价值一眼可见——也解释了为什么有时要等。</div>\n      </div>\n    </div>\n  </div>\n  <div class=\"sec\">\n    <div class=\"sec-title\">第二层 · 导演视角（运行中才能看）</div>\n    <div class=\"sec-sub\">入口：运行时 ⋯ 里出现「看它现在在干嘛」· 数据全部来自现有事件流（step / tool / reasoning）· 顺带解决「它在干嘛、卡没卡」</div>\n    <div class=\"row\">\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"chat-mini\">\n              <div class=\"bub-u\">把刚才那版样式再调紧一点</div>\n              <div class=\"meta\">14:32</div>\n              <div class=\"bub-b\" style=\"color:var(--text-3)\">正在处理…</div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">⌨️</span>bash<span class=\"raw\">2.1s</span></div><div class=\"tc-b\">npm run build</div></div>\n              <div class=\"toolcard\" style=\"opacity:.55\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\">web/style.css</div></div>\n            </div>\n            <div class=\"engine-ov\">\n              <div class=\"eng-head\"><span class=\"dot\"></span><span class=\"tt\">引擎</span><span class=\"cnt\">第 5 圈 · 工具 12 次 · 思考 34s</span></div>\n              <div class=\"eng-body\">\n                <div class=\"eng-ring\">\n                  <svg viewBox=\"0 0 100 100\">\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"3\"/>\n                    <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"94 251\" style=\"filter:drop-shadow(0 0 5px rgba(59,130,246,.6))\"/>\n                    <path d=\"M 80 26 l 5 8 l -10 2 z\" fill=\"var(--accent)\"/>\n                  </svg>\n                  <div class=\"st2 lit\" style=\"left:50%; top:10%\"><span class=\"em2\">🧠</span>想</div>\n                  <div class=\"st2\" style=\"left:90%; top:50%\"><span class=\"em2\">🔧</span>做</div>\n                  <div class=\"st2\" style=\"left:50%; top:90%\"><span class=\"em2\">👀</span>看</div>\n                  <div class=\"st2\" style=\"left:10%; top:50%\"><span class=\"em2\">🔁</span>再想</div>\n                </div>\n                <div class=\"eng-acts\">\n                  <div class=\"eng-act now\">🧠 考えています <span class=\"st\">已 6s</span></div>\n                  <div class=\"eng-act\">📄 翻看了 style.css <span class=\"st\">0.3s</span></div>\n                  <div class=\"eng-act\">⌨️ 跑了构建命令 <span class=\"st\">2.1s</span></div>\n                  <div class=\"eng-act\">🔁 上一圈：改了间距 <span class=\"st\"></span></div>\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">实时</span><b>当前阶段亮起、环随进度填充。</b>说话式记录代替工具名，转圈图本身就是诚实的进度指示。</div>\n      </div>\n\n      <div class=\"cell\">\n        <div class=\"phone\"><div class=\"notch\"></div><div class=\"statusbar\"><span>9:41</span><span>􀙇 􀛨</span></div>\n          <div class=\"screen\">\n            <div class=\"story-head\"><span class=\"n\">+</span><span class=\"t\">对账 · 人话 ↔ 原版</span></div>\n            <div class=\"story-body\" style=\"padding-top:2px\">\n              <div class=\"story-desc\" style=\"margin-bottom:8px\">讲解页末尾：把你<b style=\"color:var(--text)\">这条真实会話</b>翻译一遍（只在讲解内部，不改真实聊天）</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>翻看了文件<span class=\"raw\">read · 0.3s</span></div><div class=\"tc-b\">web/app.js（4600 行）——扫了滚动和抽屉相关部分</div></div>\n              <div class=\"arrow-note\">↓ 同一张卡片，你平时看到的</div>\n              <div class=\"toolcard\"><div class=\"tc-h\"><span class=\"ic\">📄</span>read<span class=\"raw\">0.3s</span></div><div class=\"tc-b\" style=\"font-family:var(--mono); font-size:11px\">web/app.js</div></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">渗透（可选）</span><b>只在讲解页内部对照。</b>真实聊天一个像素不动；将来若想要常驻人话版，再作为设置里的可选项讨论。</div>\n      </div>\n\n      <div class=\"cell\" style=\"max-width:560px\">\n        <div style=\"background:var(--bg-elev); border:1px solid var(--line); border-radius:16px; padding:20px 22px; font-size:13px; line-height:2; color:var(--text-2)\">\n          <div style=\"font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px\">映射表 · 真实机制 → 屏幕语言</div>\n          <b style=\"color:var(--text)\">上下文</b> → 案卷（电话里念给专家听的）<br>\n          <b style=\"color:var(--text)\">思考流</b> → 专家沉吟「正在想」<br>\n          <b style=\"color:var(--text)\">工具调用</b> → 「帮我翻一下 / 跑一下」（人话模式）<br>\n          <b style=\"color:var(--text)\">结果回传</b> → 「念给他听」（下一圈开始）<br>\n          <b style=\"color:var(--text)\">多步循环</b> → 转圈计数「第 N 圈」<br>\n          <b style=\"color:var(--text)\">待ち行列 / 插话</b> → 待ち行列等他忙完 / 凑到电话边补一句<br>\n          <b style=\"color:var(--text)\">上下文压力 / 压缩</b> → 案卷厚度 · 自动做摘要<br>\n          <div style=\"margin-top:12px; padding-top:12px; border-top:1px solid var(--line)\">\n            <b style=\"color:var(--text)\">刻意不画：</b>token、JSON、system prompt 原文、モデル路由、思考强度原理——每个概念只在它困扰用户的地方出现，不做教科书。\n          </div>\n        </div>\n        <div class=\"cap\"><span class=\"tag\">边界</span>原型的五屏叙事 + 导演视角 + 人话模式三层，均不占主界面：全部藏在 ⋯ 与设置里。</div>\n      </div>\n\n    </div>\n  </div>\n</div>\n"
 let protoView = null
 function showProto() {
   closeProto()
@@ -3676,7 +3676,7 @@ function showProto() {
   const wrap = el('div', 'proto-board')
   wrap.style.cssText = 'padding:36px 16px 60px;max-width:1720px;margin:0 auto'
   wrap.innerHTML = PROTO_HTML
-  const back = el('button', null, '✕ 关闭原型')
+  const back = el('button', null, '✕ 閉じる原型')
   back.type = 'button'
   back.style.cssText = 'position:sticky;top:10px;margin:0 0 14px auto;display:block;z-index:2;background:var(--bg-card-2);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:8px 16px;font-size:14px'
   back.onclick = () => { location.hash = '#/' }
@@ -3688,7 +3688,7 @@ function closeProto() { if (protoView) { protoView.remove(); protoView = null } 
 function route() {
   const h = location.hash || '#/'
   ttsStop()   // 切走就别念了
-  // 离开会话：把「看到现在」记为已读（覆盖观看期间静默折叠进来的事件；正在运行的轮由 turn/end 实时记）
+  // 离开会話：把「看到现在」记为已读（覆盖观看期间静默折叠进来的事件；正在运行的轮由 turn/end 实时记）
   if (S.current && S.sessions.has(S.current) && !h.startsWith('#/s/' + S.current)) markSeenNow(S.sessions.get(S.current))
   if (h === '#/proto') { S.current = null; showProto(); return }
   closeProto()
@@ -3699,7 +3699,7 @@ function route() {
   renderList()
 }
 
-/* ================= 手势：右滑返回 / sheet 下拽关闭 ================= */
+/* ================= 手势：右滑戻る / sheet 下拽閉じる ================= */
 function initSwipeBack() {
   const v = chatView()
   let maybe = false, tracking = false, sx = 0, sy = 0, dx = 0
@@ -3771,17 +3771,17 @@ function initSheetDrag() {
   sheet.addEventListener('touchcancel', finish)
 }
 
-/* ================= 新会话 ================= */
+/* ================= 新しい会話 ================= */
 let newSel = null
 let newPreset = null
 async function renderNew() {
   const wrap = $('#new-ws-list')
   wrap.textContent = ''
-  if (!S.workspaces.length) await loadBase().catch(() => {})  // 工作区由 session/list 归并而来
+  if (!S.workspaces.length) await loadBase().catch(() => {})  // 作業フォルダー由 session/list 归并而来
   if (!S.workspaces.length) {
-    wrap.appendChild(el('div', 'empty-state', '还没有工作区\n先在桌面端打开 DSH 并添加一个文件夹，或等列表同步完成'))
+    wrap.appendChild(el('div', 'empty-state', '还没有作業フォルダー\n先在桌面端打开 DSH 并添加一个文件夹，或等列表同步完成'))
     const btn = $('#start-btn')
-    if (btn) { btn.disabled = true; btn.textContent = '暂无可用工作区' }
+    if (btn) { btn.disabled = true; btn.textContent = '暂无可用作業フォルダー' }
     return
   }
   if (!newSel || !S.workspaces.find((w) => w.workspaceId === newSel)) newSel = S.workspaces[0].workspaceId
@@ -3797,11 +3797,11 @@ async function renderNew() {
     row.onclick = () => { newSel = w.workspaceId; vibrate(8); wrap.querySelectorAll('.pick-ws').forEach((x) => x.classList.remove('sel')); row.classList.add('sel') }
     wrap.appendChild(row)
   }
-  // Agent 预设
+  // Agent プリセット
   const prow = $('#preset-row')
   prow.textContent = ''
   if (!S.presets) {
-    prow.appendChild(el('span', 'sheet-note', '加载预设…'))
+    prow.appendChild(el('span', 'sheet-note', '加载プリセット…'))
     rpc('agentPresets/list', {})
       .then((v) => {
         S.presets = (v.presets || []).map((p) => ({ id: p.id, name: p.name || p.id, isDefault: !!p.isDefault }))
@@ -3810,8 +3810,8 @@ async function renderNew() {
       .catch(() => { S.presets = { error: true }; if (location.hash === '#/new') renderNew() })
     return
   }
-  if (S.presets && S.presets.error) { prow.appendChild(el('span', 'sheet-note', '预设加载失败，将使用默认预设')); return }
-  if (!S.presets.length) { prow.appendChild(el('span', 'sheet-note', '使用默认预设')); return }
+  if (S.presets && S.presets.error) { prow.appendChild(el('span', 'sheet-note', 'プリセット加载失败，将使用默认プリセット')); return }
+  if (!S.presets.length) { prow.appendChild(el('span', 'sheet-note', '使用默认プリセット')); return }
   if (!newPreset || !S.presets.find((p) => p.id === newPreset)) {
     const def = S.presets.find((p) => p.isDefault) || S.presets[0]
     newPreset = def.id
@@ -3823,8 +3823,8 @@ async function renderNew() {
   }
   renderNewModelRow()
 }
-/* 新会话的模型行：宿主语义＝新会话沿用「上次在任何会话里选过的模型」（selectModel 会写全局默认）。
-   这里显示将要用的模型，也可以改（改了在创建后立刻 selectModel，同时也会更新全局默认）。 */
+/* 新しい会話的モデル行：宿主语义＝新しい会話沿用「上次在任何会話里选过的モデル」（selectModel 会写全局默认）。
+   这里显示将要用的モデル，也可以改（改了在创建后立刻 selectModel，同时也会更新全局默认）。 */
 let newModelSel = null   // null = 跟随全局默认
 function ensureModelCat() {
   if (S.modelCat) return Promise.resolve(S.modelCat)
@@ -3837,7 +3837,7 @@ function ensureModelCat() {
 function renderNewModelRow() {
   const h = $('#new-model-h'), row = $('#new-model-row')
   if (!h || !row) return
-  h.textContent = '模型'
+  h.textContent = 'モデル'
   row.textContent = ''
   const box = btnize(el('div', 'pick-ws'))
   const wi = el('div', 'ws-ico'); wi.appendChild(icon('chat', 17))
@@ -3846,26 +3846,26 @@ function renderNewModelRow() {
   ensureModelCat()
     .then((cat) => {
       const cur = newModelSel || cat.default || {}
-      mid.appendChild(el('div', 'ws-name', modelNameOf({ models: cat }, cur) + (newModelSel ? '' : '（默认）')))
-      mid.appendChild(el('div', 'ws-path', '新会话沿用上次选择的模型；这里改也会更新默认'))
+      mid.appendChild(el('div', 'ws-name', modelNameOf({ models: cat }, cur) + (newModelSel ? '' : '（既定）')))
+      mid.appendChild(el('div', 'ws-path', '前回のモデルを使います。変更すると既定のモデルも更新します。'))
       box.onclick = () => { vibrate(8); openNewModelSheet() }
     })
     .catch(() => {
-      mid.appendChild(el('div', 'ws-name', '模型目录加载失败'))
-      mid.appendChild(el('div', 'ws-path', '点按重试'))
+      mid.appendChild(el('div', 'ws-name', 'モデル一覧を取得できません'))
+      mid.appendChild(el('div', 'ws-path', 'タップして再試行'))
       box.onclick = () => { vibrate(8); S.modelCat = null; renderNewModelRow() }
     })
   box.appendChild(mid)
   box.appendChild(el('span', 'r-chev', '›'))
   row.appendChild(box)
 }
-/* 新会话的模型选择浮层：与 ⋯ 面板同构（当前置顶＋强度就地改），只是 apply 记在本地 */
+/* 新しい会話的モデル选择浮层：与 ⋯ 面板同构（当前置顶＋强度就地改），只是 apply 记在本地 */
 function openNewModelSheet() {
   let ov = $('#nm-ov')
   if (!ov) {
     ov = el('div', 'sheet-overlay')
     ov.id = 'nm-ov'
-    ov.innerHTML = '<div class="sheet q-sheet"><div class="grabber"></div><div class="qd-head"><span class="qd-title">模型</span><span class="qd-cnt"></span><button class="think-close" id="nm-close" type="button" aria-label="关闭">✕</button></div><div class="qd-list" id="nm-list"></div></div>'
+    ov.innerHTML = '<div class="sheet q-sheet"><div class="grabber"></div><div class="qd-head"><span class="qd-title">モデル</span><span class="qd-cnt"></span><button class="think-close" id="nm-close" type="button" aria-label="閉じる">✕</button></div><div class="qd-list" id="nm-list"></div></div>'
     document.querySelector('#app').appendChild(ov)
     ov.addEventListener('click', (e) => { if (e.target === ov) closeNewModelSheet() })
     $('#nm-close').onclick = closeNewModelSheet
@@ -3883,25 +3883,25 @@ function openNewModelSheet() {
       renderNewModelRow()
     }
     renderModelPickerInto(list, cat, cur, apply, null)
-    const note = el('div', 'sheet-note', '选择会保存为全局默认：之后的新会话（手机与桌面）都会沿用。')
+    const note = el('div', 'sheet-note', '選択は全体の既定になります。スマホ・PCで次に作る会話にも適用します。')
     list.appendChild(note)
   }
   ensureModelCat().then(render).catch(() => {})
   ovSet('nm-ov', true)
 }
 function closeNewModelSheet() { ovSet('nm-ov', false); renderNewModelRow() }
-/* 工作区有两种来源，创建会话时的定位参数必须跟着变：
+/* 作業フォルダー有两种来源，创建会話时的定位参数必须跟着变：
    - workspace/follow 注册表项：workspaceId 是不透明 id（0f7d3c66-…），只能传 workspaceId
    - session/list 的 cwd 推导项：workspaceId 就是路径，只能传 cwd
-   传错会被宿主拒绝：failed to create session … cwd must be an absolute path */
+   传错会被宿主拒否：failed to create session … cwd must be an absolute path */
 function createLocator(ws, fallback) {
   if (!ws || !ws.path) return { cwd: fallback }
   return ws.workspaceId === ws.path ? { cwd: ws.path } : { workspaceId: ws.workspaceId }
 }
 function prettyCreateError(e) {
   const m = String((e && e.message) || e || '')
-  if (/absolute path/.test(m)) return '工作区路径无效，请重新选择工作区'
-  if (/workspace\/not-found|not found/.test(m) && /workspace/i.test(m)) return '工作区已失效，请重新选择'
+  if (/absolute path/.test(m)) return '作業フォルダー路径无效，请重新作業フォルダーを選択'
+  if (/workspace\/not-found|not found/.test(m) && /workspace/i.test(m)) return '作業フォルダー已失效，请重新选择'
   return m.replace(/^failed to create session "[^"]*":\s*(Error:\s*)?/, '')
 }
 async function startSession() {
@@ -3915,7 +3915,7 @@ async function startSession() {
     try {
       v = await rpc('session/create', { request: { ...loc, ...(newPreset ? { agentPreset: newPreset } : {}) } })
     } catch (e) {
-      // 注册表项过期（工作区已删除/改名）→ 退回用路径创建，别让用户卡在报错上
+      // 注册表项过期（作業フォルダー已删除/改名）→ 退回用路径创建，别让用户卡在报错上
       if (loc.workspaceId && ws && ws.path) {
         v = await rpc('session/create', { request: { cwd: ws.path, ...(newPreset ? { agentPreset: newPreset } : {}) } })
       } else throw e
@@ -3924,7 +3924,7 @@ async function startSession() {
     s.blank = !text
     s.createdHere = true  // 本机创建：即使为空也保留在列表里
     if (newModelSel) {
-      // 新会话选了模型：创建后立刻应用（首条消息就用它）；同时也会写全局默认（宿主语义）
+      // 新しい会話选了モデル：创建后立刻应用（最初のメッセージ就用它）；同时也会写全局默认（宿主语义）
       try { await rpc('session/selectModel', { request: { sessionId: v.sessionId, provider: newModelSel.provider, model: newModelSel.model, ...(newModelSel.reasoningEffort ? { reasoningEffort: newModelSel.reasoningEffort } : {}) } }) } catch (e2) {}
     }
     s.updatedAt = Date.now()
@@ -3937,11 +3937,11 @@ async function startSession() {
   } catch (e) {
     toast('创建失败：' + prettyCreateError(e), true)
   } finally {
-    btn.disabled = false; btn.textContent = '开始会话'
+    btn.disabled = false; btn.textContent = '会話を始める'
   }
 }
 
-/* ================= 发消息 / 停止 ================= */
+/* ================= 发メッセージ / 停止 ================= */
 /* reuseRpcId：失败重试时沿用首次的 requestId —— 宿主按 requestId 幂等去重，
  * 换新 id 等于放弃去重：首次其实已被受理、只是回包迟到时，重试会让同一条指令真的执行两遍 */
 async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
@@ -3952,16 +3952,16 @@ async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
   s.updatedAt = Date.now()
   s.lastPreview = text || '[图片]'
   prevDirtyMark(id)   // 预览现在停在提问文本上；回答落地（follow 折叠或后台补拉）后清除
-  s.follow = true  // 自己发消息：必然想看到最新
-  ttsStop()   // 开口说话比听更重要：发消息即停朗读
+  s.follow = true  // 自己发メッセージ：必然想看到最新
+  ttsStop()   // 开口说话比听更重要：发メッセージ即停朗读
   if (S.current === id) renderChat(s, true)
   renderListSoon()
   const content = []
   if (text) content.push({ type: 'text', text })
   for (const im of images || []) content.push({ type: 'image', mediaType: im.mediaType, data: im.data, name: im.name })
   try {
-    // 运行中：按「运行中发送」设置（默认排队，与桌面一致）；长按发送可本次反向（forceMode）。
-    // 宿主判定不可 steer 时自动降级排队——running 状态过期不该让用户的消息卡住
+    // 运行中：按「运行中送信」设置（默认待ち行列，与桌面一致）；长按送信可本次反向（forceMode）。
+    // 宿主判定不可 steer 时自动降级待ち行列——running 状态过期不该让用户的メッセージ卡住
     const mode = (!s.running) ? 'queue' : (forceMode || busyEnter())
     let finalMode = mode
     try {
@@ -3973,10 +3973,10 @@ async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
       } else throw e
     }
     // RPC 已受理 → 传输完成。分两种呈现：
-    //  - 真正排队（本轮还在跑）：消息还没进对话流，撤下乐观气泡，交给输入框上方的排队 chip。
-    //    重进会话后宿主快照本来就是这个形态（快照不含未消费的排队消息），此前实时路径与之
-    //    不一致，表现即「排队的消息混在对话流里、chip 不出现，退出重进才正常」。
-    //  - 其余（空闲新开一轮 / 插话）：气泡保留，等 user/message 事件到达后就地转正（rpcId 匹配）
+    //  - 真正待ち行列（本轮还在跑）：メッセージ还没进对话流，撤下乐观气泡，交给输入框上方的待ち行列 chip。
+    //    重进会話后宿主快照本来就是这个形态（快照不含未消费的待ち行列メッセージ），此前实时路径与之
+    //    不一致，表现即「待ち行列的メッセージ混在对话流里、chip 不出现，退出重进才正常」。
+    //  - 其余（待機中新开一轮 / 插话）：气泡保留，等 user/message 事件到达后就地转正（rpcId 匹配）
     if (finalMode === 'queue' && s.running) {
       const i = s.items.indexOf(item)
       if (i >= 0) s.items.splice(i, 1)
@@ -3990,7 +3990,7 @@ async function sendPrompt(id, text, images, forceMode, reuseRpcId) {
     item.pending = false; item.failed = true
     if (S.current === id) renderChat(s)
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError')
-    toast(isTimeout ? '网络超时，未送达 — 点气泡上的重试' : '发送失败：' + e.message, true)
+    toast(isTimeout ? '网络超时，未送达 — 点气泡上的重试' : '送信失败：' + e.message, true)
   }
 }
 function retrySend(s, item) {
@@ -3999,17 +3999,17 @@ function retrySend(s, item) {
   sendPrompt(s.id, item.text, item.images, null, item.rpcId)  // 沿用原 id：宿主幂等去重，避免双发
 }
 async function cancelSession(id) {
-  try { await rpc('session/cancel', { request: { sessionId: id } }); toast('已发送停止 ■') } catch (e) { toast(e.message, true) }
+  try { await rpc('session/cancel', { request: { sessionId: id } }); toast('已送信停止 ■') } catch (e) { toast(e.message, true) }
 }
 
-/* ================= 会话设置面板（模型 / 权限） ================= */
+/* ================= 会話の設定面板（モデル / 操作の権限） ================= */
 let sheetSession = null
 function loadModels(s) {
   rpc('session/modelCatalog', {})
     .then((v) => {
       s.models = v
       if (sheetSession === s.id) refreshSheetViews(s)
-      if (S.current === s.id && s.items.some((x) => x.kind === 'sys' && x.modelSel)) scheduleRender(s)   // 目录到了：模型标记行从原始 id 换成正式名
+      if (S.current === s.id && s.items.some((x) => x.kind === 'sys' && x.modelSel)) scheduleRender(s)   // 目录到了：モデル标记行从原始 id 换成正式名
     })
     .catch((e) => { s.models = { error: e.message }; if (sheetSession === s.id) refreshSheetViews(s) })
 }
@@ -4053,7 +4053,7 @@ function openSubPanel(kind, title, build) {
   subPanelKind = kind
   $('#sub-title').textContent = title
   const body = $('#sub-body')
-  body.classList.remove('mp-fit')   // mp-fit：模型选择器专用的「外层不滚、两栏各自滚」布局
+  body.classList.remove('mp-fit')   // mp-fit：モデル选择器专用的「外层不滚、两栏各自滚」布局
   body.textContent = ''
   body.scrollTop = 0
   build(body)
@@ -4067,7 +4067,7 @@ function closeSubPanel() {
   const sub = $('#sheet-sub')
   if (sub) { sub.classList.remove('in'); sub.setAttribute('aria-hidden', 'true') }
 }
-/* 菜单 + 当前打开的二级面板一起刷新（投影/目录异步到位时用） */
+/* 菜单 + 当前打开的二级面板一起再読み込み（投影/目录异步到位时用） */
 function refreshSheetViews(s) {
   if (sheetSession !== s.id) return
   renderSheet(s)
@@ -4077,7 +4077,7 @@ function refreshSheetViews(s) {
   else if (subPanelKind === 'stats') renderStatsPanel(s)
 
 }
-/* 当前模型的展示名（含强度），如「glm-5.3 · Max」 */
+/* 当前モデル的展示名（含强度），如「glm-5.3 · Max」 */
 function modelLabel(s) {
   const m = s.models
   if (!m) return '加载中…'
@@ -4118,7 +4118,7 @@ async function applyPermission(s, opt) {
     // 修「提示成功但界面没动」：control 流不一定广播该投影，先乐观更新 ✓，
     // 再用 session/list（唯一事实源）对齐真实值
     if (s.permissions) { s.permissions = { ...s.permissions, currentValue: opt.value }; refreshSheetViews(s) }
-    toast('权限已切换：' + permLabel(opt.value))
+    toast('操作の権限已切换：' + permLabel(opt.value))
     loadBaseSoon()
   } catch (e) { toast('切换失败：' + e.message, true) }
 }
@@ -4146,22 +4146,22 @@ function renderSheet(s) {
     r.onclick = onClick
     return r
   }
-  // ---- 任务清单（有任务才出现；点开任务抽屉）----
+  // ---- タスク一覧（有任务才出现；点开任务抽屉）----
   if (s.todos && s.todos.length) {
     const st = todoStats(s)
-    c.appendChild(valueRow('任务清单', st.done + '/' + st.total + ' 已完成', st.allDone ? '✓ 全部完成' : '进行中', () => { closeSheet(); openTaskSheet(s) }))
+    c.appendChild(valueRow('タスク一覧', st.done + '/' + st.total + ' 已完成', st.allDone ? '✓ 全部完成' : '进行中', () => { closeSheet(); openTaskSheet(s) }))
   }
-  // ---- 模型 ----
-  c.appendChild(valueRow('模型', '切换模型 / 思考强度', modelLabel(s), () => openModelPanel(s)))
-  // ---- 权限 ----
+  // ---- モデル ----
+  c.appendChild(valueRow('モデル', '切换モデル / 思考强度', modelLabel(s), () => openModelPanel(s)))
+  // ---- 操作の権限 ----
   const perms = s.permissions
   const permName = () => {
     if (!perms) return '加载中…'
     return permLabel(perms.currentValue)
   }
-  c.appendChild(valueRow('权限', '文件与命令的边界', permName(), () => openPermPanel(s)))
-  // ---- 运行中发送 ----
-  c.appendChild(valueRow('运行中发送', '排队或插话', busyEnter() === 'queue' ? '排队' : '插话', () => openSendPanel(s)))
+  c.appendChild(valueRow('操作の権限', '文件与命令的边界', permName(), () => openPermPanel(s)))
+  // ---- 运行中送信 ----
+  c.appendChild(valueRow('运行中送信', '待ち行列或插话', busyEnter() === 'queue' ? '待ち行列' : '插话', () => openSendPanel(s)))
   // 自动朗读开关：直接切换（不需要二级面板）
   {
     const row = btnize(el('div', 'sheet-row'))
@@ -4179,7 +4179,7 @@ function renderSheet(s) {
       ttsSetAuto(nv)
       sw.classList.toggle('on', nv)
       sw.setAttribute('aria-checked', nv ? 'true' : 'false')
-      if (nv) { ttsWarm(); toast('已开启：回答完成后自动朗读') } else { ttsStop(); toast('已关闭自动朗读') }
+      if (nv) { ttsWarm(); toast('已开启：回答完成后自动朗读') } else { ttsStop(); toast('已閉じる自动朗读') }
     }
     c.appendChild(row)
   }
@@ -4187,58 +4187,58 @@ function renderSheet(s) {
   const p = s.ctxPressure
   const statVal = p && p.contextWindow ? Math.round(p.pressureTokens / p.contextWindow * 100) + '% · ' + fmtCtxTok(p.pressureTokens) : '—'
   c.appendChild(valueRow('统计', '上下文 / tokens / 耗时', statVal, () => openStatsPanel(s)))
-  // ---- 复制全部对话（直接动作）----
+  // ---- コピー全部对话（直接动作）----
   const copyRow = btnize(el('div', 'sheet-row'))
   const cm = el('div'); cm.style.minWidth = '0'; cm.style.flex = '1'
-  cm.appendChild(el('div', 'r-name', '复制全部对话'))
+  cm.appendChild(el('div', 'r-name', 'コピー全部对话'))
   cm.appendChild(el('div', 'r-desc', '导出为纯文本，粘贴到任何地方'))
   copyRow.appendChild(cm)
   copyRow.onclick = () => {
     copyText(sessionText(s), (ok) => {
       vibrate(10)
-      if (ok) toast('已复制 ' + s.items.filter((i) => i.kind === 'user' || i.kind === 'assistant').length + ' 条消息')
-      else toast('复制失败，请重试', true)
+      if (ok) toast('已コピー ' + s.items.filter((i) => i.kind === 'user' || i.kind === 'assistant').length + ' 条メッセージ')
+      else toast('コピー失败，请重试', true)
     })
   }
   c.appendChild(copyRow)
-  // ---- 会话：重命名 / 分叉 / 归档（原只在侧栏会话菜单里有，正文里也要能直接做）----
-  c.appendChild(el('div', 'sheet-group', '会话'))
+  // ---- 会話：名前を変更 / 会話を分岐 / アーカイブ（原只在侧栏会話菜单里有，正文里也要能直接做）----
+  c.appendChild(el('div', 'sheet-group', '会話'))
   const t = s.title || ''
-  c.appendChild(valueRow('重命名', '改当前会话的标题', t.length > 14 ? t.slice(0, 14) + '…' : (t || '未命名'), () => openRenamePanel(s)))
-  c.appendChild(valueRow('分叉', '从最近完成的轮复制出新会话', '', async () => {
+  c.appendChild(valueRow('名前を変更', '改当前会話的标题', t.length > 14 ? t.slice(0, 14) + '…' : (t || '未命名'), () => openRenamePanel(s)))
+  c.appendChild(valueRow('会話を分岐', '从最近完成的轮コピー出新しい会話', '', async () => {
     vibrate(8)
     try {
       closeSheet()
-      toast('正在分叉…')
+      toast('正在会話を分岐…')
       const v = await rpc('session/fork', { request: { sessionId: s.id } })
-      toast('已分叉 ✓ 正在打开')
+      toast('已会話を分岐 ✓ 正在打开')
       location.hash = '#/s/' + v.sessionId
       flushForkTail(v.sessionId)
-    } catch (e) { toast('分叉失败：' + e.message, true) }
+    } catch (e) { toast('会話を分岐失败：' + e.message, true) }
   }))
-  c.appendChild(valueRow('归档', '从列表移除，可在桌面端恢复', '', async () => {
+  c.appendChild(valueRow('アーカイブ', '从列表移除，可在桌面端恢复', '', async () => {
     vibrate(8)
     try {
       const av = await rpc('workspace/archiveSession', { request: { sessionId: s.id } })
       if (av && Array.isArray(av.archivedSessionIds)) S.archived = new Set(av.archivedSessionIds)
       S.sessions.delete(s.id)
       closeSheet()
-      location.hash = '#/'   // 当前会话没了：回主页
+      location.hash = '#/'   // 当前会話没了：回主页
       renderList()
-      toast('已归档（可在桌面端恢复）')
-    } catch (e) { toast('归档失败：' + e.message, true) }
+      toast('已アーカイブ（可在桌面端恢复）')
+    } catch (e) { toast('アーカイブ失败：' + e.message, true) }
   }))
   c.appendChild(el('div', 'sheet-note', '点带 › 的行进入对应设置。'))
   c.appendChild(el('div', 'sheet-note', 'DSH PWA v1.13.0'))
 }
-/* 重命名：⋯ → 会话 → 重命名，就地编辑保存 */
+/* 名前を変更：⋯ → 会話 → 名前を変更，就地编辑保存 */
 function openRenamePanel(s) {
-  openSubPanel('rename', '重命名', (body) => {
+  openSubPanel('rename', '名前を変更', (body) => {
     body.classList.add('rn-body')
     const box = el('div', 'ren-box')
     box.contentEditable = 'plaintext-only'
     if (box.contentEditable !== 'plaintext-only') box.contentEditable = 'true'
-    box.dataset.ph = '输入新标题'
+    box.dataset.ph = '输入新しいタイトル'
     box.textContent = s.title || ''
     const save = async () => {
       const t = editableText(box).replace(/\n+/g, ' ').trim()
@@ -4250,23 +4250,23 @@ function openRenamePanel(s) {
         s._titleAt = Date.now()   // 同左滑改名：短窗内本地胜出，挡在途旧帧
         closeSubPanel(); closeSheet()
         renderListSoon()
-        renderChat(s, true)   // 顶部标题/列表刷新
-        toast('已重命名 ✓')
-      } catch (e) { toast('重命名失败：' + e.message, true) }
+        renderChat(s, true)   // 顶部标题/列表再読み込み
+        toast('已名前を変更 ✓')
+      } catch (e) { toast('名前を変更失败：' + e.message, true) }
     }
     const btn = el('button', 'ren-save', '保存')
     btn.type = 'button'
     btn.onclick = save
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save() } })
-    body.appendChild(el('div', 'sheet-note', '标题用于会话列表与桌面端同步显示。'))
+    body.appendChild(el('div', 'sheet-note', '标题用于会話列表与桌面端同步显示。'))
     body.appendChild(box)
     body.appendChild(btn)
     setTimeout(() => { box.focus(); document.getSelection().selectAllChildren(box) }, 180)   // 等面板滑入再聚焦全选
   })
 }
-/* ---- 模型面板：当前模型置顶（强度就在旁边，选完模型立刻能调强度）+ 分组清单 ---- */
+/* ---- モデル面板：当前モデル置顶（强度就在旁边，选完モデル立刻能调强度）+ 分组清单 ---- */
 function openModelPanel(s) {
-  openSubPanel('model', '模型', () => renderModelPanel(s))
+  openSubPanel('model', 'モデル', () => renderModelPanel(s))
 }
 function renderModelPanel(s) {
   const body = $('#sub-body')
@@ -4290,18 +4290,18 @@ function renderModelPanel(s) {
   const apply = (g, mod, effort) => applyModel(s, g, mod, effort)
   renderModelPickerInto(body, m, cur, apply, s)
 }
-/* 共享选择器（两栏式）：左＝模型清单，右＝选中模型的思考强度（选了模型才出现）。
-   会话面板与新会话页共用；apply 由调用方决定（RPC 切换 / 本地记录）。 */
+/* 共享选择器（两栏式）：左＝モデル清单，右＝选中モデル的思考强度（选了モデル才出现）。
+   会話面板与新しい会話页共用；apply 由调用方决定（RPC 切换 / 本地记录）。 */
 let mpLeftScroll = null   // 左列滚动位置：apply 后整面板重渲染，别把用户刚滚到的位置丢掉
 function renderModelPickerInto(body, m, cur, apply, s) {
   // 运行中切换：明确「下一轮生效」，别让人以为当前这轮就换了
   if (s && s.running && s.modelLastUsed) {
     const lu = s.modelLastUsed
     if (lu.provider !== cur.provider || lu.model !== cur.model || lu.reasoningEffort !== cur.reasoningEffort) {
-      body.appendChild(el('div', 'sheet-note', '本轮仍在用 ' + modelNameOf(s, lu) + '，下一条消息起才用新的选择'))
+      body.appendChild(el('div', 'sheet-note', '本轮仍在用 ' + modelNameOf(s, lu) + '，下一条メッセージ起才用新的选择'))
     }
   }
-  // 选中模型有强度才分两栏；没有就整栏只放模型列表（右栏根本不出现）
+  // 选中モデル有强度才分两栏；没有就整栏只放モデル列表（右栏根本不出现）
   const curMod = (() => {
     for (const g of m.groups || []) for (const mod of g.models || []) if (g.id === cur.provider && mod.id === cur.model) return mod
     return null
@@ -4310,7 +4310,7 @@ function renderModelPickerInto(body, m, cur, apply, s) {
   const cols = el('div', hasEfs ? 'mp-cols' : 'mp-cols one')
   const left = el('div', 'mp-left')
   const right = hasEfs ? el('div', 'mp-right') : null
-  // 左栏：模型（分组小标题 + 紧凑行）
+  // 左栏：モデル（分组小标题 + 紧凑行）
   for (const g of m.groups || []) {
     left.appendChild(el('div', 'mp-grp', g.name))
     for (const mod of g.models || []) {
@@ -4328,7 +4328,7 @@ function renderModelPickerInto(body, m, cur, apply, s) {
       left.appendChild(row)
     }
   }
-  // 右栏：选中模型的说明 + 思考强度（只在有强度的模型上出现）
+  // 右栏：选中モデル的说明 + 思考强度（只在有强度的モデル上出现）
   if (right) renderMpRight(right, m, cur, apply)
   cols.append(left)
   if (right) cols.appendChild(right)
@@ -4366,7 +4366,7 @@ function renderMpRight(right, m, cur, apply) {
     }
   }
 }
-/* ---- 问过的问题：先出当前窗口已知的，再逐页往前补（边补边追加，不让人干等） ---- */
+/* ---- 質問一覧：先出当前窗口已知的，再逐页往前补（边补边追加，不让人干等） ---- */
 function windowQuestions(s) {
   const seen = new Set()
   const out = []
@@ -4382,7 +4382,7 @@ function windowQuestions(s) {
 }
 /* 累加器：窗口已知 + 已经翻到的更早页（时间正序，旧→新）。面板随时读它渲染。 */
 function qAcc(s) {
-  // 又有新消息进窗口 → 缓存作废重建（扫描进行中先不动，免得把累加器抽掉）
+  // 又有新メッセージ进窗口 → 缓存作废重建（扫描进行中先不动，免得把累加器抽掉）
   if (s._qStale && !s._qScan) { s._qAcc = null; s._qAll = null; s._qTotal = undefined; s._qStale = false }
   if (!s._qAcc) s._qAcc = windowQuestions(s)
   return s._qAcc
@@ -4446,7 +4446,7 @@ function mkQRow(s, it, numEl, close) {
 }
 /* 把问题列表渲染进给定容器（⋯ 子面板 / 微信式浮窗抽屉共用）：
    立即出当前已知的，扫描在后台继续，扫到一页就追加一页 */
-/* 用户当前所在的提问：对话时间线里视野上沿之上的最后一条用户消息
+/* 用户当前所在的提问：对话时间线里视野上沿之上的最后一条用户メッセージ
    （正在读它的回答；在底部/跟随时自然就是最新一条） */
 function nearestQuestionKey() {
   const sc = chatScrollEl()
@@ -4513,7 +4513,7 @@ function qPanelRefreshFoot() {
   if (!qPanel) return
   if (qPanel.empty) {
     qPanel.spin.style.display = 'none'
-    qPanel.label.textContent = '这个对话里还没有你发过的消息'
+    qPanel.label.textContent = '这个对话里还没有你发过的メッセージ'
     return
   }
   if (qPanel.done) {
@@ -4525,7 +4525,7 @@ function qPanelRefreshFoot() {
   }
 }
 function qPanelAppend(s, freshAsc) {
-  // 目标必须是「还活着」的列表：重建/收起后旧容器已脱离 DOM，往它追加没人看得见
+  // 目標必须是「还活着」的列表：重建/收起后旧容器已脱离 DOM，往它追加没人看得见
   if (!qPanel || qPanel.sid !== s.id || !qPanel.list.isConnected) return
   const list = qPanel.list
   const sc = qPanel.scroller   // 滚动容器（qPanel.list 只是它的内容子节点，不能 scrollTop）
@@ -4552,7 +4552,7 @@ function qPanelDone(s, complete) {
   qPanel.done = true
   qPanel.complete = !!complete
   qPanelNumber(qAcc(s))
-  if (qPanel.focusKey) qCenterFocus(qPanel.scroller)          // 有定位目标：居中到当前问题
+  if (qPanel.focusKey) qCenterFocus(qPanel.scroller)          // 有定位目標：居中到当前问题
   else if (qPanel.pinned) { qPanel.scroller._selfAt = Date.now(); qPanel.scroller.scrollTop = qPanel.scroller.scrollHeight }   // 全量落地：吸回最新一条
   qPanelRefreshFoot()
 }
@@ -4585,7 +4585,7 @@ function closeQDrawer() {
   scrim.classList.remove('open')
   if (h) { h.setAttribute('aria-expanded', 'false'); h.classList.remove('hidden') }
 }
-/* 定位到某条消息：不在当前窗口就向前翻页找，然后居中 + 高亮闪一下 */
+/* 定位到某条メッセージ：不在当前窗口就向前翻页找，然后居中 + 高亮闪一下 */
 async function jumpToItem(s, ref) {
   // 引用可能来自「翻全历史」收集的临时对象：按 seq/time/文本 匹配，而不是对象同一性
   const match = (it) => it && it.kind === 'user' && (
@@ -4610,7 +4610,7 @@ async function jumpToItem(s, ref) {
     return node
   }
   if (S.current !== s.id) return
-  // 已在窗口里：直接定位，别整条重建——大会话下重建要几十上百毫秒，这就是「点完要等一会」的根因
+  // 已在窗口里：直接定位，别整条重建——大会話下重建要几十上百毫秒，这就是「点完要等一会」的根因
   let node = locate()
   if (!node && s.items.some(match)) { renderChat(s); node = locate() }   // DOM 还没刷出来：补一次重建再找
   if (!node) {
@@ -4632,10 +4632,10 @@ async function jumpToItem(s, ref) {
     node = locate()
   }
   if (!node) return
-  node.scrollIntoView({ block: 'center', behavior: 'auto' })   // 必须瞬时定位（smooth 动画会被 80ms 一轮的重建销毁目标节点而中断）
+  node.scrollIntoView({ block: 'center', behavior: 'auto' })   // 必须瞬时定位（smooth 动画会被 80ms 一轮的重建销毁目標节点而中断）
   flashJumped(s, node)
 }
-/* 跳转高亮：运行中的会话每 ~80ms 重建一次 DOM，闪一下立刻就被抹掉——
+/* 跳转高亮：运行中的会話每 ~80ms 重建一次 DOM，闪一下立刻就被抹掉——
    记下 key 与截止时间，renderChat 重建后把高亮补挂回去，保证肉眼可见 */
 function flashJumped(s, node) {
   const k = node.dataset.k || node.dataset.q || ''
@@ -4651,9 +4651,9 @@ function reapplyFlash(s, sc) {
   const n = sc.querySelector('[data-k="' + s._flashKey + '"]') || sc.querySelector('[data-q="' + s._flashKey + '"]')
   if (n) n.classList.add('q-flash')
 }
-/* ================= seek 跳转：一次往返直达目标提问所在的那一段 ================= */
-/* 旧跳转从窗口最旧处串行向前翻页，远目标要十几个来回（外网 2-5 秒）。
-   seek：目标提问 seq 已知（抽屉扫描缓存），它所在的一轮 = [目标 .. 下一条提问之前]，
+/* ================= seek 跳转：一次往返直达目標提问所在的那一段 ================= */
+/* 旧跳转从窗口最旧处串行向前翻页，远目標要十几个来回（外网 2-5 秒）。
+   seek：目標提问 seq 已知（抽屉扫描缓存），它所在的一轮 = [目標 .. 下一条提问之前]，
    一次 session/page（throughSeq=下一条提问-1）就能整段取回，插进窗口正确的位置；
    两侧够不着的部分留 gap 占位行，滚动靠近时再按段补（fillGap）。API 只有向后翻页，这是能一次到位的唯一路径。 */
 async function seekToQuestion(s, ref) {
@@ -4662,8 +4662,8 @@ async function seekToQuestion(s, ref) {
   const idx = acc.findIndex((it) => it.seq === ref.seq)
   if (idx < 0) return false
   const nextQ = acc[idx + 1]
-  if (!nextQ || nextQ.seq == null) return false   // 最后一条提问必在窗口内（快路径已处理）
-  // 插入位置与上界：目标在某个 gap 里就劈开那个 gap；在全局最旧之下就整体前插
+  if (!nextQ || nextQ.seq == null) return false   // 最后一条提问必在窗口内（快路径処理済み）
+  // 插入位置与上界：目標在某个 gap 里就劈开那个 gap；在全局最旧之下就整体前插
   const gap = s.items.find((it) => it && it.kind === 'gap' && it.from <= ref.seq && ref.seq < it.to)
   const insertAt = gap ? s.items.indexOf(gap) : 0
   const upperLimit = gap ? gap.to - 1 : s.oldestSeq - 1   // 块顶不能越过上方已加载的内容
@@ -4678,7 +4678,7 @@ async function seekToQuestion(s, ref) {
     for (const e of recs) foldEvent(tmp, e)
     block = tmp.items.concat(block)
     firstSeq = recs[0].seq
-    if (firstSeq <= ref.seq) break          // 已经盖到目标提问
+    if (firstSeq <= ref.seq) break          // 已经盖到目標提问
     through = firstSeq - 1                  // 这轮回答比一页还长：再往前补一段（罕见）
   }
   if (firstSeq == null || firstSeq > ref.seq) return false
@@ -4712,9 +4712,9 @@ async function fillGap(s, gap) {
     renderChat(s)
   } catch (e) {} finally { if (gap) gap._filling = false }
 }
-/* ================= 消息分叉（移植桌面端轮尾 branch） ================= */
+/* ================= メッセージ会話を分岐（移植桌面端轮尾 branch） ================= */
 /* 桌面语义：forkAt(seq) → 服务端找 ≥seq 的 turn/end，历史切到该轮结束；
-   只允许已完成的轮次（否则 fork-unavailable）；子会话标题加 (n) 后缀并直接打开。 */
+   只允许已完成的轮次（否则 fork-unavailable）；子会話标题加 (n) 后缀并直接打开。 */
 function turnComplete(s, item) {
   if (item.turn == null) return !s.running
   if (s._curTurn == null) return !s.running
@@ -4728,11 +4728,11 @@ function increasedForkTitle(title) {
   return title + ' (1)'
 }
 /* 宿主 fork 的 cut 是「边界轮 turn/end 之后一直推进到下一个 turn/start」——这会把边界轮之后
-   splice 进 agent 收件箱的下一条提问一并切给子会话，哪怕那一轮早已完成。子会话平时休眠看不见，
-   一旦用户发消息唤醒，agent 会先跑那条旧问题，用户的新消息只能排在后面（即用户报的 bug）。
+   splice 进 agent 收件箱的下一条提问一并切给子会話，哪怕那一轮早已完成。子会話平时休眠看不见，
+   一旦用户发メッセージ唤醒，agent 会先跑那条旧问题，用户的新メッセージ只能排在后面（即用户报的 bug）。
    宿主侧没有清收件箱的接口（cancel 不唤醒、updateQueue 只管队列），所以这里主动冲：
-   marker 入队唤醒 → 旧尾巴开跑 → 从队列摘掉 marker → 打断旧轮。子会话时间线会留下那条旧问题 + 「已中断」——
-   它本来就真实存在于子会话的种子里，这样至少用户的新消息能立即被处理。 */
+   marker 入队唤醒 → 旧尾巴开跑 → 从队列摘掉 marker → 打断旧轮。子会話时间线会留下那条旧问题 + 「已中断」——
+   它本来就真实存在于子会話的种子里，这样至少用户的新メッセージ能立即被处理。 */
 async function flushForkTail(childId) {
   try {
     // 1) 检测：种子（session/end-seed 之前）最后一个 turn/end 之后是否还有 inbox/spliced
@@ -4750,7 +4750,7 @@ async function flushForkTail(childId) {
     if (!inherited) return false
     // 2) marker 入队唤醒（旧尾巴在它前面，marker 不会被先消费）
     // 注意：队列广播的 source 是空对象（无 requestId），只能按文本认领——所以文本必须够独特
-    const markerText = '（分叉初始化 ' + Date.now().toString(36) + '，请忽略）'
+    const markerText = '（会話を分岐初始化 ' + Date.now().toString(36) + '，请忽略）'
     await rpc('session/prompt', { request: { requestId: 'fork-flush-' + Date.now(), sessionId: childId, mode: 'queue', content: [{ type: 'text', text: markerText }], clientTimeZone: tz() } })
     // 3) marker 进队后马上摘掉（它排在旧尾巴后面，摘除窗口足够）
     for (let i = 0; i < 24; i++) {
@@ -4773,9 +4773,9 @@ function showForkConfirm(anchorEl, s, item) {
   const old = document.querySelector('.fork-pop')
   if (old) old.remove()
   const pop = el('div', 'fork-pop')
-  const y = el('button', 'fp-y', '⑂ 从这里分叉')
+  const y = el('button', 'fp-y', '⑂ 从这里会話を分岐')
   y.type = 'button'
-  const n = el('button', 'fp-n', '取消')
+  const n = el('button', 'fp-n', 'キャンセル')
   n.type = 'button'
   pop.append(y, n)
   document.body.appendChild(pop)
@@ -4789,19 +4789,19 @@ function showForkConfirm(anchorEl, s, item) {
     pop.remove()
     y.disabled = true
     try {
-      // 1) 服务端切历史：≥atSeq 的 turn/end 为止（桌面同款 atSeq=该条消息事件 seq）
+      // 1) 服务端切历史：≥atSeq 的 turn/end 为止（桌面同款 atSeq=该条メッセージ事件 seq）
       const v = await rpc('session/fork', { request: { sessionId: s.id, atSeq: item.seq } })
       const childId = v.sessionId
       // 2) 标题加 (n) 后缀（移植桌面 increasedForkTitle；失败不阻断打开）
       try { await rpc('session/rename', { request: { sessionId: childId, title: increasedForkTitle(sessTitle(s)) } }) } catch (e2) {}
       vibrate(12)
-      toast('已分叉：新会话「' + increasedForkTitle(sessTitle(s)) + '」')
+      toast('已会話を分岐：新しい会話「' + increasedForkTitle(sessTitle(s)) + '」')
       loadBase()
       location.hash = '#/s/' + childId   // 桌面行为：创建后直接打开
-      flushForkTail(childId)   // 宿主的 cut 会把边界轮之后的收件箱尾巴也切给子会话，冲掉（见函数注释）
+      flushForkTail(childId)   // 宿主的 cut 会把边界轮之后的收件箱尾巴也切给子会話，冲掉（见函数注释）
     } catch (e) {
       const msg = String((e && e.message) || e)
-      toast(/fork-unavailable|not completed|no completed turn/i.test(msg) ? '这一轮还没完成，完成后再分叉' : '分叉失败：' + msg, true)
+      toast(/fork-unavailable|not completed|no completed turn/i.test(msg) ? '这一轮还没完成，完成后再会話を分岐' : '会話を分岐失败：' + msg, true)
     }
   }
 }
@@ -4831,7 +4831,7 @@ function openTurnStatsSheet(s, item, liveTs) {
   const grid2 = el('div', 'kv-grid')
   grid2.append(mk('总时长', durS), mk('TTFT（首 token）', sec(tm.ttftMs)), mk('解码时长', sec(tm.decodeMs)), mk('速度', speed))
   g2.appendChild(grid2)
-  const g3 = el('div', 'ts-grp', '模型')
+  const g3 = el('div', 'ts-grp', 'モデル')
   const route = el('div', 'ts-route')
   route.appendChild(el('span', 'ri', 'AI'))
   route.appendChild(document.createTextNode((s.modelSel && s.modelSel.model) || s.agentPreset || '默认'))
@@ -4840,21 +4840,21 @@ function openTurnStatsSheet(s, item, liveTs) {
   if (ts.live) body.appendChild(el('div', 'sheet-note', '本轮还在跑：时长按秒走；token / 速度每完成一步结算一次（宿主只在步结束时给 usage）。'))
   ovSet('ts-ov', true)
 }
-/* ---- 权限面板 ---- */
+/* ---- 操作の権限面板 ---- */
 function openPermPanel(s) {
-  openSubPanel('perm', '权限', () => renderPermPanel(s))
+  openSubPanel('perm', '操作の権限', () => renderPermPanel(s))
 }
 function renderPermPanel(s) {
   const body = $('#sub-body')
   if (!body) return
   body.textContent = ''
   const perms = s.permissions
-  if (!perms) body.appendChild(el('div', 'sheet-note', '暂不可用（会话历史加载后显示）'))
+  if (!perms) body.appendChild(el('div', 'sheet-note', '暂不可用（会話历史加载后显示）'))
   else for (const opt of perms.options) body.appendChild(permRow(s, opt, perms.currentValue))
 }
-/* ---- 运行中发送面板 ---- */
+/* ---- 运行中送信面板 ---- */
 function openSendPanel(s) {
-  openSubPanel('send', '运行中发送', () => renderSendPanel(s))
+  openSubPanel('send', '运行中送信', () => renderSendPanel(s))
 }
 function renderSendPanel(s) {
   const body = $('#sub-body')
@@ -4862,12 +4862,12 @@ function renderSendPanel(s) {
   body.textContent = ''
   const modeRow = el('div', 'mode-row')
   for (const m of ['queue', 'steer']) {
-    const chip = btnize(el('span', 'chip' + (busyEnter() === m ? ' sel' : ''), m === 'queue' ? '排队（默认）' : '插话'))
+    const chip = btnize(el('span', 'chip' + (busyEnter() === m ? ' sel' : ''), m === 'queue' ? '待ち行列（既定）' : '插话'))
     chip.onclick = () => { vibrate(8); setBusyEnter(m); refreshSheetViews(s) }
     modeRow.appendChild(chip)
   }
   body.appendChild(modeRow)
-  body.appendChild(el('div', 'sheet-note', '运行中点发送按此设置投递；长按发送按钮可本次反向。排队后可点输入框上方的 chip 编辑、转插话或删除。'))
+  body.appendChild(el('div', 'sheet-note', '运行中点送信按此设置投递；长按送信按钮可本次反向。待ち行列后可点输入框上方的 chip 编辑、转插话或删除。'))
 }
 /* ---- 统计面板（原 renderStatsSection 的全部内容）---- */
 function openStatsPanel(s) {
@@ -4887,7 +4887,7 @@ function renderStatsSection(s, c, noHeader) {
     c.appendChild(stSec)
   }
   const p = s.ctxPressure
-  if (!p || !p.contextWindow) { c.appendChild(el('div', 'sheet-note', '暂无统计（会话加载后显示）')); return }
+  if (!p || !p.contextWindow) { c.appendChild(el('div', 'sheet-note', '暂无统计（会話加载后显示）')); return }
   const pct = Math.max(0, Math.min(100, Math.round(p.pressureTokens / p.contextWindow * 100)))
   const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--orange)' : 'var(--green)'
   const circumference = 2 * Math.PI * 36
@@ -4911,7 +4911,7 @@ function renderStatsSection(s, c, noHeader) {
       const i2 = el('i'); i2.style.flex = String(Math.max(1, v2)); i2.style.background = col; track.appendChild(i2)
     }
     num.appendChild(track)
-    num.appendChild(el('div', 'cap', '消息 ' + fmtCtxTok(brk.messageTokens) + ' · 工具 ' + fmtCtxTok(brk.toolsTokens || 0) + ' · 系统 ' + fmtCtxTok(brk.systemTokens || 0)))
+    num.appendChild(el('div', 'cap', 'メッセージ ' + fmtCtxTok(brk.messageTokens) + ' · 工具 ' + fmtCtxTok(brk.toolsTokens || 0) + ' · 系统 ' + fmtCtxTok(brk.systemTokens || 0)))
   }
   hero.appendChild(num)
   c.appendChild(hero)
@@ -4932,19 +4932,19 @@ function renderStatsSection(s, c, noHeader) {
     ['未缓存输入', fmtTok(tu.uncachedInputTokens)],
     ['输出', fmtTok(tu.outputTokens)],
     ['缓存命中', fmtTok(tu.cacheReadTokens)],
-    ['模型', (s.modelSel && (s.modelSel.model + (s.modelSel.reasoningEffort ? ' · ' + s.modelSel.reasoningEffort : ''))) || '—'],
+    ['モデル', (s.modelSel && (s.modelSel.model + (s.modelSel.reasoningEffort ? ' · ' + s.modelSel.reasoningEffort : ''))) || '—'],
   ]))
   const ss = s.sessionStats || {}
   c.appendChild(kvGrid([
     ['对话轮数', ss.turns != null ? String(ss.turns) : '—'],
-    ['模型调用', ss.steps != null ? String(ss.steps) : '—', ss.steps != null ? '步' : ''],
+    ['モデル调用', ss.steps != null ? String(ss.steps) : '—', ss.steps != null ? '步' : ''],
     ['LLM 时间', fmtDur(ss.llmMs)],
     ['工具时间', fmtDur(ss.toolMs)],
     ['平均 TTFT', ss.ttftSteps > 0 ? (ss.ttftMs / ss.ttftSteps / 1000).toFixed(1) + 's' : '—'],
     ['平均速度', ss.decodeMs > 0 ? Math.round(ss.decodeTokens / (ss.decodeMs / 1000)) + ' tok/s' : '—'],
   ]))
 }
-/* 投影统计变更时节流刷新面板 */
+/* 投影统计变更时节流再読み込み面板 */
 let sheetSoonTimer = null
 function renderSheetSoon(s) {
   if (sheetSoonTimer) return
@@ -4962,12 +4962,12 @@ function sessionText(s) {
   return lines.filter(Boolean).join('\n\n')
 }
 
-/* 模型行（紧凑单行）：15 个模型全铺开也不至于失控；描述不展示，强度在面板顶部统一处理 */
-/* 宿主的权限 option.name 就是原始值（read-only 等），这里给出中文标签与说明 */
+/* モデル行（紧凑单行）：15 个モデル全铺开也不至于失控；描述不展示，强度在面板顶部统一处理 */
+/* 宿主的操作の権限 option.name 就是原始值（read-only 等），这里给出中文标签与说明 */
 const PERM_LABEL = {
-  'read-only': ['只读', '只能读文件与检索，不能改动任何东西'],
-  'workspace-write': ['工作区写入', '可在工作区内读写文件、执行命令'],
-  'danger-full-access': ['完全访问', '不做限制，含工作区外的读写与危险命令'],
+  'read-only': ['読み取り専用', 'ファイルの読み取りと検索のみ。変更はできません。'],
+  'workspace-write': ['作業フォルダー内の変更', '作業フォルダー内の変更・コマンド実行を許可します。'],
+  'danger-full-access': ['すべての操作を許可', '作業フォルダー外の変更や危険なコマンドも許可します。'],
 }
 const permLabel = (v) => (PERM_LABEL[v] ? PERM_LABEL[v][0] : v)
 const permDesc = (opt) => (PERM_LABEL[opt.value] ? PERM_LABEL[opt.value][1] : (opt.description || ''))
@@ -4998,12 +4998,12 @@ function toast(text, opts) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600)
 }
 
-/* ================= 下拉刷新 ================= */
+/* ================= 下拉再読み込み ================= */
 function initPtr(sc) {
   const ind = $('#ptr')
   if (!sc || !ind) return
   /* 方向锁：touchstart 不武装。只有「列表在顶部 + 明显下拉（纵向优势 1.5 倍）+ 没有卡片正在左滑」
-     才进入 PTR——左滑卡片时向下漂移不再误触发刷新（修「一边滑一边晃」）。 */
+     才进入 PTR——左滑卡片时向下漂移不再误触发再読み込み（修「一边滑一边晃」）。 */
   let sx = 0, sy = 0, decided = false, pulling = false
   sc.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; decided = false; pulling = false }
@@ -5018,7 +5018,7 @@ function initPtr(sc) {
     if (!pulling) return
     if (dy > 12 && sc.scrollTop <= 0) {
       ind.classList.add('show')
-      ind.textContent = dy > 72 ? '松开刷新' : '下拉刷新…'
+      ind.textContent = dy > 72 ? '松开再読み込み' : '下拉再読み込み…'
     } else if (dy <= 4) ind.classList.remove('show')
   }, { passive: true })
   const finish = (e) => {
@@ -5026,7 +5026,7 @@ function initPtr(sc) {
     pulling = false; decided = false
     const dy = e.changedTouches[0].clientY - sy
     if (dy > 72 && sc.scrollTop <= 0) {
-      ind.textContent = '刷新中…'
+      ind.textContent = '再読み込み中…'
       loadBase().finally(() => ind.classList.remove('show'))
     } else ind.classList.remove('show')
   }
@@ -5065,43 +5065,43 @@ function buildShell() {
   $('#app').innerHTML = `
   <div class="view" id="view-list">
     <div class="navbar"><div class="bar">
-      <div class="big-title">会话</div>
-      <button class="nav-btn" id="theme-toggle" type="button" aria-label="切换深浅色主题"></button>
-      <span class="conn-pill" id="conn-pill" role="button" tabindex="0" aria-label="连接状态，断线时点按重连"><span class="dot"></span><span>连接中…</span></span>
+      <div class="big-title">会話</div>
+      <button class="nav-btn" id="theme-toggle" type="button" aria-label="明るいテーマと暗いテーマを切り替え"></button>
+      <span class="conn-pill" id="conn-pill" role="button" tabindex="0" aria-label="接続状態。切断時はタップで再接続"><span class="dot"></span><span>接続しています…</span></span>
     </div></div>
     <div class="scroll" id="list-scroll">
       <div class="ptr" id="ptr"></div>
       <div class="search-row">
-        <input class="search" id="search" placeholder="搜索会话" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="搜索会话">
-        <button class="todo-chip" id="todo-chip" type="button" aria-label="只看待处理" style="display:none"></button>
+        <input class="search" id="search" placeholder="会話を検索" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="会話を検索">
+        <button class="todo-chip" id="todo-chip" type="button" aria-label="対応が必要な会話のみ" style="display:none"></button>
       </div>
-      <div class="list-seg" id="list-seg" aria-label="列表排序方式">
-        <button class="seg-btn" data-mode="time" type="button" aria-pressed="true">最近活跃</button>
-        <button class="seg-btn" data-mode="workspace" type="button" aria-pressed="false">按工作区</button>
+      <div class="list-seg" id="list-seg" aria-label="会話の並べ方">
+        <button class="seg-btn" data-mode="time" type="button" aria-pressed="true">最近の会話</button>
+        <button class="seg-btn" data-mode="workspace" type="button" aria-pressed="false">作業フォルダー別</button>
       </div>
       <div id="session-list"></div>
     </div>
-    <button class="fab" id="fab-new" type="button" aria-label="新会话"><span class="ic-slot" data-ic="plus"></span></button>
+    <button class="fab" id="fab-new" type="button" aria-label="新しい会話"><span class="ic-slot" data-ic="plus"></span></button>
   </div>
   <div class="view" id="view-chat">
     <div class="navbar"><div class="bar">
-      <button class="nav-btn back" id="chat-back" aria-label="返回"><span class="ic-slot" data-ic="back"></span></button>
+      <button class="nav-btn back" id="chat-back" aria-label="戻る"><span class="ic-slot" data-ic="back"></span></button>
       <div class="title"><span id="chat-title"></span><div class="subtitle" id="chat-sub"></div></div>
-      <button class="nav-btn" id="chat-more" aria-label="会话设置"><span class="ic-slot" data-ic="more"></span></button>
+      <button class="nav-btn" id="chat-more" aria-label="会話の設定"><span class="ic-slot" data-ic="more"></span></button>
       <div class="ctx-bar" aria-hidden="true"><div class="ctx-fill" id="ctx-fill"></div></div>
     </div></div>
-    <div class="task-bar" id="task-bar" role="button" tabindex="0" aria-label="任务清单" style="display:none">
+    <div class="task-bar" id="task-bar" role="button" tabindex="0" aria-label="タスク一覧" style="display:none">
       <span class="tb-ic" id="tb-ic"></span>
       <span class="tb-cur" id="tb-cur"></span>
       <span class="tb-cnt" id="tb-cnt"></span>
       <span class="tb-track"><i class="tb-fill" id="tb-fill"></i></span>
     </div>
-    <div class="goal-bar" id="goal-bar" role="button" tabindex="0" aria-label="目标" style="display:none"></div>
+    <div class="goal-bar" id="goal-bar" role="button" tabindex="0" aria-label="目標" style="display:none"></div>
     <div class="chat-scroll" id="chat-scroll"></div>
-    <button class="q-handle" id="q-handle" type="button" aria-label="问过的问题" aria-expanded="false"><span class="qh-ic" data-ic="qlist"></span></button>
+    <button class="q-handle" id="q-handle" type="button" aria-label="質問一覧" aria-expanded="false"><span class="qh-ic" data-ic="qlist"></span></button>
     <div class="q-scrim" id="q-scrim"></div>
-    <div class="q-drawer" id="q-drawer" role="dialog" aria-label="问过的问题" aria-hidden="true">
-      <div class="qd-head"><span class="qd-title">问过的问题</span><span class="qd-cnt" id="qd-cnt"></span><button class="think-close" id="qd-close" type="button" aria-label="关闭">✕</button></div>
+    <div class="q-drawer" id="q-drawer" role="dialog" aria-label="質問一覧" aria-hidden="true">
+      <div class="qd-head"><span class="qd-title">質問一覧</span><span class="qd-cnt" id="qd-cnt"></span><button class="think-close" id="qd-close" type="button" aria-label="閉じる">✕</button></div>
       <div class="qd-list" id="qd-list"></div>
       <div class="qd-foot" id="qd-foot"></div>
     </div>
@@ -5113,18 +5113,18 @@ function buildShell() {
       <div class="attach-strip" id="attach-strip"></div>
       <div class="quote-strip" id="quote-strip"></div>
       <div class="composer">
-        <button class="c-btn" id="attach-btn" aria-label="添加图片"><span class="ic-slot" data-ic="plus"></span></button>
+        <button class="c-btn" id="attach-btn" aria-label="画像を追加"><span class="ic-slot" data-ic="plus"></span></button>
         <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none">
-        <div class="input-box" id="chat-input" contenteditable data-ph="发消息…" aria-label="消息输入框"></div>
-        <button class="send" id="send-btn" aria-label="发送"><span class="ic-slot" data-ic="send"></span></button>
+        <div class="input-box" id="chat-input" contenteditable data-ph="メッセージを入力…" aria-label="メッセージ入力"></div>
+        <button class="send" id="send-btn" aria-label="送信"><span class="ic-slot" data-ic="send"></span></button>
       </div>
     </div>
-    <button class="new-msg-pill" id="new-msg-pill" type="button">↓ 新消息</button>
+    <button class="new-msg-pill" id="new-msg-pill" type="button">↓ 新しいメッセージ</button>
   </div>
   <div class="view" id="view-new">
     <div class="navbar"><div class="bar">
-      <div class="title">新会话</div>
-      <button class="nav-btn" id="new-cancel">取消</button>
+      <div class="title">新しい会話</div>
+      <button class="nav-btn" id="new-cancel">キャンセル</button>
     </div></div>
     <div class="scroll">
       <div class="ws-group" id="ws-group-h"></div>
@@ -5134,17 +5134,17 @@ function buildShell() {
       <div class="ws-group" id="new-model-h"></div>
       <div id="new-model-row"></div>
       <div class="ws-group" id="new-input-h"></div>
-      <div class="new-input" id="new-input" contenteditable data-ph="帮我把 …" aria-label="首条消息"></div>
-      <button class="start-btn" id="start-btn">开始会话</button>
+      <div class="new-input" id="new-input" contenteditable data-ph="依頼する内容を入力…" aria-label="最初のメッセージ"></div>
+      <button class="start-btn" id="start-btn">会話を始める</button>
     </div>
   </div>
   <div class="sheet-overlay" id="sheet-overlay">
-    <div class="sheet" role="dialog" aria-label="会话设置">
+    <div class="sheet" role="dialog" aria-label="会話の設定">
       <div class="grabber"></div>
       <div class="sheet-scroll" id="sheet-content"></div>
       <div class="sheet-sub" id="sheet-sub" aria-hidden="true">
         <div class="sub-head">
-          <button class="sub-back" id="sub-back" type="button" aria-label="返回菜单">‹ 返回</button>
+          <button class="sub-back" id="sub-back" type="button" aria-label="メニューに戻る">‹ 戻る</button>
           <span class="sub-title" id="sub-title"></span>
         </div>
         <div class="sheet-scroll sub-body" id="sub-body"></div>
@@ -5152,23 +5152,23 @@ function buildShell() {
     </div>
   </div>
   <div class="sheet-overlay" id="think-overlay" aria-hidden="true">
-    <div class="sheet think-sheet" id="think-drawer" role="dialog" aria-label="思考过程">
+    <div class="sheet think-sheet" id="think-drawer" role="dialog" aria-label="思考内容">
       <div class="grabber"></div>
       <div class="think-head">
-        <span class="think-title">思考过程</span>
-        <span class="think-live" id="think-live"><span class="dot"></span>正在思考</span>
-        <button class="think-close" id="think-close" type="button" aria-label="关闭">✕</button>
+        <span class="think-title">思考内容</span>
+        <span class="think-live" id="think-live"><span class="dot"></span>考えています</span>
+        <button class="think-close" id="think-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <div class="think-body" id="think-body"></div>
     </div>
   </div>
   <div class="sheet-overlay" id="task-ov" aria-hidden="true">
-    <div class="sheet task-sheet" role="dialog" aria-label="任务清单">
+    <div class="sheet task-sheet" role="dialog" aria-label="タスク一覧">
       <div class="grabber"></div>
       <div class="task-head">
-        <span class="task-title">任务清单</span>
+        <span class="task-title">タスク一覧</span>
         <span class="task-count" id="task-count"></span>
-        <button class="think-close" id="task-close" type="button" aria-label="关闭">✕</button>
+        <button class="think-close" id="task-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <div class="task-body" id="task-body"></div>
     </div>
@@ -5178,7 +5178,7 @@ function buildShell() {
       <div class="grabber"></div>
       <div class="task-head">
         <span class="task-title" id="ts-title">本轮统计</span>
-        <button class="think-close" id="ts-close" type="button" aria-label="关闭">✕</button>
+        <button class="think-close" id="ts-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <div class="sheet-scroll" id="ts-body" style="padding:2px 16px 18px"></div>
     </div>
@@ -5188,7 +5188,7 @@ function buildShell() {
       <div class="grabber"></div>
       <div class="task-head">
         <span class="task-title" id="quote-title">引用</span>
-        <button class="think-close" id="quote-close" type="button" aria-label="关闭">✕</button>
+        <button class="think-close" id="quote-close" type="button" aria-label="閉じる">✕</button>
       </div>
       <pre class="quote-full" id="quote-full"></pre>
       <div class="note-in" id="quote-note" contenteditable data-ph="给这条引用加一句注解（可选）…"></div>
@@ -5196,29 +5196,29 @@ function buildShell() {
     </div>
   </div>
   <div class="sheet-overlay" id="q-ov" aria-hidden="true">
-    <div class="sheet q-sheet" id="q-sheet" role="dialog" aria-label="排队消息管理">
+    <div class="sheet q-sheet" id="q-sheet" role="dialog" aria-label="待ち行列メッセージ管理">
       <div class="grabber"></div>
       <div class="sheet-scroll q-body" id="q-body">
-        <div class="act-row" id="q-a-edit" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>编辑内容<span class="sub">修改这段排队的文本</span></div>
+        <div class="act-row" id="q-a-edit" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>内容を編集<span class="sub">修改这段待ち行列的文本</span></div>
         <div class="act-row" id="q-a-steer" role="button" tabindex="0"><span class="ic" data-act-ic="bolt"></span>立即插话<span class="sub">不等本轮结束，马上生效</span></div>
-        <div class="act-row danger" id="q-a-del" role="button" tabindex="0"><span class="ic" data-act-ic="trash"></span>删除<span class="sub">取消这条排队</span></div>
-        <div class="q-edit-box" id="q-edit-box" contenteditable aria-label="编辑排队内容"></div>
+        <div class="act-row danger" id="q-a-del" role="button" tabindex="0"><span class="ic" data-act-ic="trash"></span>删除<span class="sub">キャンセル这条待ち行列</span></div>
+        <div class="q-edit-box" id="q-edit-box" contenteditable aria-label="编辑待ち行列内容"></div>
       </div>
-      <button class="q-save" id="q-save" type="button">保存修改</button>
+      <button class="q-save" id="q-save" type="button">変更を保存</button>
     </div>
   </div>
   <div class="sheet-overlay" id="sess-ov" aria-hidden="true">
-    <div class="sheet q-sheet" id="sess-sheet" role="dialog" aria-label="会话操作">
+    <div class="sheet q-sheet" id="sess-sheet" role="dialog" aria-label="会話操作">
       <div class="grabber"></div>
       <div class="sess-menu-title" id="sess-menu-title"></div>
       <div class="sheet-scroll q-body">
-        <div class="act-row" id="sess-a-rename" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>重命名<span class="sub">改这个会话的标题</span></div>
-        <div class="act-row" id="sess-a-fork" role="button" tabindex="0"><span class="ic" data-act-ic="fork"></span>分叉<span class="sub">复制到新会话继续</span></div>
+        <div class="act-row" id="sess-a-rename" role="button" tabindex="0"><span class="ic" data-act-ic="pencil"></span>名前を変更<span class="sub">改这个会話的标题</span></div>
+        <div class="act-row" id="sess-a-fork" role="button" tabindex="0"><span class="ic" data-act-ic="fork"></span>会話を分岐<span class="sub">コピー到新しい会話继续</span></div>
         <div class="act-row" id="sess-a-stop"><span class="ic">⏹</span>停止<span class="sub">中断正在运行的任务</span></div>
-        <div class="act-row" id="sess-a-archive"><span class="ic">📦</span>归档<span class="sub">从列表收起（桌面端可恢复）</span></div>
-        <div class="q-edit-box" id="sess-rename-box" contenteditable aria-label="新标题"></div>
+        <div class="act-row" id="sess-a-archive"><span class="ic">📦</span>アーカイブ<span class="sub">从列表收起（桌面端可恢复）</span></div>
+        <div class="q-edit-box" id="sess-rename-box" contenteditable aria-label="新しいタイトル"></div>
       </div>
-      <button class="q-save" id="sess-rename-save" type="button">保存标题</button>
+      <button class="q-save" id="sess-rename-save" type="button">タイトルを保存</button>
     </div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>`
@@ -5229,11 +5229,11 @@ function buildShell() {
   })
   document.querySelectorAll('[data-act-ic]').forEach((slot) => { slot.appendChild(icon(slot.dataset.actIc, 16)) })
   const gh = (id, ic, text) => { const g = $(id); g.appendChild(icon(ic, 14)); g.appendChild(el('span', null, text)) }
-  gh('#ws-group-h', 'folder', '选择工作区')
-  gh('#preset-group-h', 'robot', 'Agent 预设')
-  gh('#new-input-h', 'chat', '说点什么开始（可留空）')
+  gh('#ws-group-h', 'folder', '作業フォルダーを選択')
+  gh('#preset-group-h', 'robot', 'Agent プリセット')
+  gh('#new-input-h', 'chat', '最初の依頼（空欄でも可）')
   $('#search').addEventListener('input', renderList)
-  // 列表视图切换：最近活跃平铺 / 按工作区分组
+  // 列表视图切换：最近の会話平铺 / 作業フォルダー別分组
   // 列表一滚就收起左滑操作（iOS Mail 同款）：滚动中不再有横在半路的卡片
   const listScroll = $('#list-scroll')
   if (listScroll && !listScroll._swipeClose) {
@@ -5261,7 +5261,7 @@ function buildShell() {
   initPtr($('#list-scroll'))
   initSwipeBack()
   initSheetDrag()
-  // 思考抽屉：背景/✕ 关闭 + 下拽关闭（与 ⋯ 面板同手势语言）
+  // 思考抽屉：背景/✕ 閉じる + 下拽閉じる（与 ⋯ 面板同手势语言）
   $('#think-overlay').addEventListener('click', (e) => { if (e.target.id === 'think-overlay') closeThink() })
   $('#think-close').onclick = closeThink
   ;(function () {
@@ -5288,7 +5288,7 @@ function buildShell() {
     sheet.addEventListener('touchend', finish)
     sheet.addEventListener('touchcancel', finish)
   })()
-  // 任务清单抽屉：顶部常驻条点击打开；背景/✕ 关闭；同样支持下拽关闭
+  // タスク一覧抽屉：顶部常驻条点击打开；背景/✕ 閉じる；同样支持下拽閉じる
   $('#task-ov').addEventListener('click', (e) => { if (e.target.id === 'task-ov') closeTaskSheet() })
   $('#task-close').onclick = closeTaskSheet
   const taskBarTap = () => { const s = S.sessions.get(S.current); if (s && s.todos && s.todos.length) openTaskSheet(s) }
@@ -5318,10 +5318,10 @@ function buildShell() {
     sheet.addEventListener('touchend', finish)
     sheet.addEventListener('touchcancel', finish)
   })()
-  // 轮级统计面板：关闭
+  // 轮级统计面板：閉じる
   $('#ts-ov').addEventListener('click', (e) => { if (e.target.id === 'ts-ov') ovSet('ts-ov', false) })
   $('#ts-close').onclick = () => ovSet('ts-ov', false)
-  // 引用注解面板：关闭/保存/删除
+  // 引用注解面板：閉じる/保存/删除
   $('#quote-ov').addEventListener('click', (e) => { if (e.target.id === 'quote-ov') ovSet('quote-ov', false) })
   $('#quote-close').onclick = () => ovSet('quote-ov', false)
   $('#quote-save').onclick = () => {
@@ -5339,7 +5339,7 @@ function buildShell() {
     else ovSet('quote-ov', false)
     renderQuoteStrip()
   }
-  // ⋯ 菜单二级面板：返回按钮
+  // ⋯ 菜单二级面板：戻る按钮
   const subBack = $('#sub-back')
   if (subBack) subBack.onclick = () => { vibrate(8); closeSubPanel() }
   // 深浅色主题：初始化 + 切换（localStorage 持久化，不跟随系统以免覆盖用户选择）
@@ -5349,7 +5349,7 @@ function buildShell() {
   const connPill = $('#conn-pill')
   connPill.onclick = manualReconnect
   connPill.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); manualReconnect() } }
-  // 「↓」pill：不在底部时始终显示（回到底部）；有新消息时升级为「↓ 新消息」
+  // 「↓」pill：不在底部时始终显示（回到底部）；有新メッセージ时升级为「↓ 新しいメッセージ」
   onTap($('#new-msg-pill'), () => {   // 靠近输入区，同样走 touchend 派发
     const sc = chatScrollEl()
     if (sc) { sc._selfScrollAt = Date.now(); sc.scrollTop = sc.scrollHeight }
@@ -5368,7 +5368,7 @@ function buildShell() {
     const sc = chatScrollEl()
     if (!sc) return
     if (S.current) sess(S.current).follow = nearBottom(sc)  // 跟随意图：到底 true、离开 false
-    // 用户滚动会刷新锚点期望值：图片补位逻辑就不会把「用户自己滑的距离」当成排版位移补回去
+    // 用户滚动会再読み込み锚点期望值：图片补位逻辑就不会把「用户自己滑的距离」当成排版位移补回去
     if (sc._anchor && sc._anchor.key) { const n = sc.querySelector('[data-k="' + sc._anchor.key + '"]'); if (n) sc._anchor.top = n.getBoundingClientRect().top }
     const userScrolled = Date.now() - (sc._selfScrollAt || 0) > 200
     updateJumpPill()
@@ -5384,23 +5384,28 @@ function buildShell() {
     // 上滑预取：离顶还有 ~2 屏就开始拉更早的内容（不必等滚到顶），用户手势期间可连续补几页
     if (userScrolled && S.current) { prefetchChain = 0; maybeLoadEarlier(sess(S.current)) }
   }, { passive: true })
-  // 聊天区点击委派：代码块复制 / 链接拉起浏览器 / 图片放大
+  // 聊天区点击委派：代码块コピー / 链接拉起浏览器 / 图片放大
   $('#chat-scroll').addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[href]')
     if (a) {
       e.preventDefault()
       vibrate(6)
-      // iOS 独立模式：window.open 拉起 Safari（noopener 第三参在部分 WebKit 会让 open 失效）
-      let ok = true
-      try { ok = !!window.open(a.href, '_blank') } catch (err) { ok = false }
-      if (!ok) { copyText(a.href, () => {}); toast('链接已复制，粘贴到浏览器访问') }
+      // Untrusted chat destinations must not control this authenticated window.
+      let url
+      try { url = new URL(a.href, location.href) } catch (err) { return }
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+      try {
+        const opened = window.open(url.href, '_blank', 'noopener,noreferrer')
+        if (opened) opened.opener = null
+        // noopener may return null on success; do not open a second window.
+      } catch (err) { copyText(url.href, () => {}); toast('リンクをコピーしました。ブラウザーで開いてください。') }
       return
     }
     const cp = e.target.closest && e.target.closest('.code-copy')
     if (cp) {
       const pre = cp.parentElement && cp.parentElement.querySelector('pre')
       const t = pre ? pre.textContent : ''
-      copyText(t, (ok) => { cp.textContent = ok ? '已复制 ✓' : '复制失败'; setTimeout(() => { cp.textContent = '复制' }, 1200) })
+      copyText(t, (ok) => { cp.textContent = ok ? '已コピー ✓' : 'コピー失败'; setTimeout(() => { cp.textContent = 'コピー' }, 1200) })
       return
     }
     const im = e.target.closest && e.target.closest('.msg-img')
@@ -5447,7 +5452,7 @@ function buildShell() {
     const text = cd ? cd.getData('text/plain') : ''
     document.execCommand('insertText', false, text)
   })
-  // 输入草稿：按会话持久化
+  // 输入草稿：按会話持久化
   input.addEventListener('input', () => {
     if (!S.current) return
     try {
@@ -5466,7 +5471,7 @@ function buildShell() {
   })
   const doSend = async (forceMode) => {
     let text = input.textContent.trim()
-    // 有引用：拼成「引用块 + 【注】 + 正文」的纯文本（协议只有 text，这就是模型实际收到的）
+    // 有引用：拼成「引用块 + 【注】 + 正文」的纯文本（协议只有 text，这就是モデル实际收到的）
     if (S.current && quotesOf(S.current).length) {
       text = composeQuoted(quotesOf(S.current), text)
       quoteDrafts.delete(S.current)
@@ -5482,8 +5487,8 @@ function buildShell() {
     vibrate(8)
     sendPrompt(S.current, text, images, forceMode)  // 乐观上屏，失败在气泡上重试
   }
-  // 发送：短按在 touchend 就执行（键盘收起引起的按钮位移会让合成 click 被丢弃＝第一次点白点），
-  // 长按（420ms）= 本次反向（默认排队 → 长按插话；反之亦然）。鼠标/键盘仍走 click。
+  // 送信：短按在 touchend 就执行（键盘收起引起的按钮位移会让合成 click 被丢弃＝第一次点白点），
+  // 长按（420ms）= 本次反向（默认待ち行列 → 长按插话；反之亦然）。鼠标/键盘仍走 click。
   const sendBtn = $('#send-btn')
   let sendLpTimer = null, sendLpFired = false, sendMoved = false, sendSx = 0, sendSy = 0, sendTouchAt = 0
   const cancelLp = () => clearTimeout(sendLpTimer)
@@ -5495,13 +5500,13 @@ function buildShell() {
     sendLpTimer = setTimeout(() => {
       // 空输入：doSend 本就空跑，不再震动/提示，避免「说要发却没发」的误导（验证 F3）
       if (!input.textContent.trim() && !pendingImages.length) { sendLpFired = false; return }
-      // 反向只在运行中有意义：空闲时 queue/steer 无差别，按普通发送处理、无提示（验证 F2）
+      // 反向只在运行中有意义：待機中时 queue/steer 无差别，按普通送信处理、无提示（验证 F2）
       const s = S.current ? sess(S.current) : null
       if (!s || !s.running) { sendLpFired = true; doSend(null); return }
       sendLpFired = true
       vibrate([30, 40, 30])
       const inv = busyEnter() === 'steer' ? 'queue' : 'steer'
-      toast(inv === 'steer' ? '本次将插话发送 ⚡' : '本次将排队发送 ⏳')
+      toast(inv === 'steer' ? '本次将插话送信 ⚡' : '本次将待ち行列送信 ⏳')
       doSend(inv)
     }, 420)
   }, { passive: true })
@@ -5516,13 +5521,13 @@ function buildShell() {
     sendLpFired = false
     if (sendMoved) return
     sendTouchAt = Date.now()
-    if (e.cancelable) e.preventDefault()  // 已在这里发送，吞掉合成 click 防止重复
+    if (e.cancelable) e.preventDefault()  // 已在这里送信，吞掉合成 click 防止重复
     if (!long) doSend(null)
   }, { passive: false })
   sendBtn.addEventListener('click', () => { if (Date.now() - sendTouchAt > 500) doSend(null) })
-  // 排队操作单：背景关闭 + 下拽关闭
+  // 待ち行列操作单：背景閉じる + 下拽閉じる
   $('#q-ov').addEventListener('click', (e) => { if (e.target.id === 'q-ov') closeQSheet() })
-  // 会话长按操作单：初始化 + 背景关闭
+  // 会話长按操作单：初始化 + 背景閉じる
   initSessionLongPress($('#list-scroll'))
   $('#sess-ov').addEventListener('click', (e) => { if (e.target.id === 'sess-ov') closeSessionMenu() })
 }
@@ -5575,7 +5580,7 @@ document.addEventListener('keydown', (e) => {
   t.click()
 })
 setInterval(() => { if (S.connState !== 'online') loadBase() }, 15000)
-/* Esc 关闭最上层浮层（多个开着时关最后打开的那个） */
+/* Esc 閉じる最上层浮层（多个开着时关最后打开的那个） */
 const OV_CLOSERS = { 'sheet-overlay': closeSheet, 'think-overlay': closeThink, 'task-ov': closeTaskSheet, 'q-ov': closeQSheet, 'sess-ov': closeSessionMenu, 'quote-ov': () => ovSet('quote-ov', false), 'ts-ov': () => ovSet('ts-ov', false), 'img-viewer': () => ovSet('img-viewer', false) }
 const ovStack = []
 const ovPush = (id) => { const i = ovStack.indexOf(id); if (i >= 0) ovStack.splice(i, 1); ovStack.push(id) }

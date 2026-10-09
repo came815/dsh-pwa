@@ -5,3 +5,10 @@ prototype/
 verify/
 *.bak
 prototype-*.png
+.env
+.env.*
+!.env.example
+.credentials.yaml
+.dsh/
+.local/
+*.log
